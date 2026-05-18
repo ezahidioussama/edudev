@@ -22,3 +22,20 @@ Route::get('/setup-database', function () {
         return 'Error: ' . $e->getMessage();
     }
 });
+
+Route::get('/debug-db', function () {
+    try {
+        $connection = \Illuminate\Support\Facades\DB::connection()->getName();
+        $database = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+        $usersCount = \Illuminate\Support\Facades\DB::table('users')->count();
+        $users = \Illuminate\Support\Facades\DB::table('users')->limit(3)->get(['id', 'name', 'email']);
+        return response()->json([
+            'connection' => $connection,
+            'database' => $database,
+            'total_users' => $usersCount,
+            'sample_users' => $users
+        ]);
+    } catch (\Exception $e) {
+        return 'DB Error: ' . $e->getMessage();
+    }
+});
