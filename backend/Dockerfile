@@ -19,4 +19,4 @@ RUN chmod -R 775 storage bootstrap/cache
 
 EXPOSE 8080
 
-CMD php artisan config:clear; php artisan migrate --force 2>/dev/null || echo "Migration skipped"; php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
+CMD mkdir -p storage/app/public/uploads && php artisan config:clear && php artisan migrate --force 2>/dev/null || true && php artisan storage:link 2>/dev/null || true && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
