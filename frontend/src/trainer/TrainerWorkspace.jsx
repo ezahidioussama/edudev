@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getEffectiveDarkMode, setUserThemePreference } from '../themePreferences'
 
 const trainerSections = [
   { key: 'dashboard', label: 'Tableau de bord', icon: GridIcon },
@@ -37,6 +38,8 @@ const emptyAssessmentForm = {
 const emptyProfileForm = {
   name: '',
   email: '',
+  phone: '',
+  bio: '',
 }
 
 const emptyPasswordForm = {
@@ -46,18 +49,39 @@ const emptyPasswordForm = {
 }
 
 export default function TrainerWorkspace({ user, api, onLogout, settings = null }) {
-  const [darkMode, setDarkMode] = useState(() => (settings?.appearance?.mode ?? 'light') === 'dark' || window.localStorage.getItem('edudev-trainer-dark') === '1')
+  const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [activeSection, setActiveSection] = useState('dashboard')
-  const [loading, setLoading] = useState(true)
+  const [activeSection, setActiveSection] = useState(() => window.localStorage.getItem('edudev.trainer.activeTab') || 'dashboard')
+  const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.trainer.cache'))
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [workspace, setWorkspace] = useState({
-    dashboard: null,
-    modules: [],
-    courses: [],
-    practicalWorks: [],
-    assessments: [],
+  const [workspace, setWorkspace] = useState(() => {
+    const defaultValue = {
+      dashboard: null,
+      modules: [],
+      courses: [],
+      practicalWorks: [],
+      assessments: [],
+    }
+    try {
+      const cached = window.localStorage.getItem('edudev.trainer.cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...defaultValue,
+            ...parsed,
+            modules: parsed.modules || [],
+            courses: parsed.courses || [],
+            practicalWorks: parsed.practicalWorks || [],
+            assessments: parsed.assessments || [],
+          }
+        }
+      }
+      return defaultValue
+    } catch {
+      return defaultValue
+    }
   })
   const [courseForm, setCourseForm] = useState(emptyCourseForm)
   const [courseFile, setCourseFile] = useState(null)
@@ -82,6 +106,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
     ...emptyProfileForm,
     name: user?.name ?? '',
     email: user?.email ?? '',
+    phone: user?.phone ?? '',
+    bio: user?.bio ?? '',
   })
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState('')
@@ -107,13 +133,16 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem('edudev-trainer-dark', darkMode ? '1' : '0')
-  }, [darkMode])
+    window.localStorage.setItem('edudev.trainer.activeTab', activeSection)
+  }, [activeSection])
 
   useEffect(() => {
-    if (settings?.appearance?.mode === 'dark') setDarkMode(true)
-    if (settings?.appearance?.mode === 'light') setDarkMode(false)
-  }, [settings])
+    setDarkMode(getEffectiveDarkMode(settings, user))
+  }, [settings, user])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+  }, [darkMode])
 
   useEffect(() => {
     setProfileUser(user)
@@ -121,6 +150,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       ...emptyProfileForm,
       name: user?.name ?? '',
       email: user?.email ?? '',
+      phone: user?.phone ?? '',
+      bio: user?.bio ?? '',
     })
   }, [user])
 
@@ -211,8 +242,17 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       }))
   }, [workspace.courses, assessmentForm.module_id])
 
+  function toggleDarkMode() {
+    setDarkMode((value) => {
+      const next = !value
+      setUserThemePreference(user, next ? 'dark' : 'light')
+      return next
+    })
+  }
+
   async function loadWorkspace({ silent = false } = {}) {
-    if (silent) {
+    const hasCache = !!window.localStorage.getItem('edudev.trainer.cache')
+    if (silent || hasCache) {
       setRefreshing(true)
     } else {
       setLoading(true)
@@ -228,19 +268,23 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
         api('/profile'),
       ])
 
-      setWorkspace({
+      const nextWorkspace = {
         dashboard,
         modules,
         courses,
         practicalWorks,
         assessments,
-      })
+      }
+      setWorkspace(nextWorkspace)
+      window.localStorage.setItem('edudev.trainer.cache', JSON.stringify(nextWorkspace))
       if (profile?.user) {
         setProfileUser(profile.user)
         setProfileForm({
           ...emptyProfileForm,
           name: profile.user.name ?? '',
           email: profile.user.email ?? '',
+          phone: profile.user.phone ?? '',
+          bio: profile.user.bio ?? '',
         })
       }
     } catch (error) {
@@ -465,9 +509,19 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
     }
   }
 
+  function resolveUrl(url) {
+    if (!url) return ''
+    if (url.startsWith('/api')) {
+      const apiBase = import.meta.env.VITE_API_URL || '/api'
+      return url.replace('/api', apiBase)
+    }
+    return url
+  }
+
   async function openPreview(documentUrl, title) {
     try {
-      const response = await fetch(documentUrl, {
+      const resolved = resolveUrl(documentUrl)
+      const response = await fetch(resolved, {
         credentials: 'include',
         headers: {
           Accept: 'application/pdf',
@@ -479,13 +533,13 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       }
 
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
+      const urlBlob = URL.createObjectURL(blob)
 
       if (previewDocument?.url) {
         URL.revokeObjectURL(previewDocument.url)
       }
 
-      setPreviewDocument({ url, title })
+      setPreviewDocument({ url: urlBlob, title })
     } catch (error) {
       pushToast('error', error.message)
     }
@@ -493,7 +547,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
   async function downloadProtectedFile(url, fileName) {
     try {
-      const response = await fetch(url, {
+      const resolved = resolveUrl(url)
+      const response = await fetch(resolved, {
         credentials: 'include',
       })
 
@@ -529,6 +584,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       const body = new FormData()
       body.append('name', profileForm.name)
       body.append('email', profileForm.email)
+      if (profileForm.phone) body.append('phone', profileForm.phone)
+      if (profileForm.bio) body.append('bio', profileForm.bio)
       if (avatarFile) {
         body.append('avatar', avatarFile)
       }
@@ -539,11 +596,14 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       })
 
       if (data?.user) {
+        window.localStorage.setItem('edudev.avatar.buster', Date.now())
         setProfileUser(data.user)
         setProfileForm({
           ...emptyProfileForm,
           name: data.user.name ?? '',
           email: data.user.email ?? '',
+          phone: data.user.phone ?? '',
+          bio: data.user.bio ?? '',
         })
       }
 
@@ -628,6 +688,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       ...emptyProfileForm,
       name: currentUser?.name ?? '',
       email: currentUser?.email ?? '',
+      phone: currentUser?.phone ?? '',
+      bio: currentUser?.bio ?? '',
     })
   }
 
@@ -647,13 +709,13 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
               mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
             )}
           >
-            <div className="mb-8 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
+            <div className="mb-8 flex flex-col items-center gap-2 text-center">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
                 <CourseIcon className="h-6 w-6" />
               </div>
-              <div>
+              <div className="flex flex-col items-center">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">{platformName}</p>
-                <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Espace formateur</h1>
+                <h1 className="text-sm font-bold leading-snug text-slate-900 dark:text-white">Espace<br /><span className="whitespace-nowrap">formateur</span></h1>
               </div>
             </div>
 
@@ -687,7 +749,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                 </div>
                 <button
                   type="button"
-                  onClick={() => setDarkMode((value) => !value)}
+                  onClick={toggleDarkMode}
                   className={classNames(
                     'relative inline-flex h-7 w-12 items-center rounded-full transition',
                     darkMode ? 'bg-orange-500' : 'bg-slate-300'
@@ -1188,6 +1250,22 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                                 error={profileErrors.email}
                               />
                             </div>
+
+                            <InputField
+                              label="Téléphone"
+                              type="tel"
+                              value={profileForm.phone}
+                              onChange={(value) => setProfileForm((previous) => ({ ...previous, phone: value }))}
+                              placeholder="+212 6XX XXX XXX"
+                            />
+
+                            <TextAreaField
+                              label="Bio / Présentation"
+                              value={profileForm.bio}
+                              onChange={(value) => setProfileForm((previous) => ({ ...previous, bio: value }))}
+                              placeholder="Décrivez votre parcours, vos spécialités ou votre expérience..."
+                              rows={3}
+                            />
 
                             <AvatarDropzone
                               user={currentUser}
@@ -1973,7 +2051,7 @@ function ProfileCard({ title, eyebrow, description, children, icon: Icon = UserI
 }
 
 function AvatarDropzone({ user, previewUrl, file, dragging, error, onDragging, onFile, onClear }) {
-  const displayUrl = previewUrl || user?.avatar_url
+  const displayUrl = resolveApiUrl(previewUrl || user?.avatar_url)
 
   function handleDrop(event) {
     event.preventDefault()
@@ -2486,8 +2564,17 @@ function EyeOffIcon({ className = 'h-5 w-5' }) {
   )
 }
 
-
-
+function resolveApiUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('/api')) {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    const finalUrl = url.replace('/api', apiBase)
+    const buster = window.localStorage.getItem('edudev.avatar.buster') || '1'
+    const separator = finalUrl.includes('?') ? '&' : '?'
+    return `${finalUrl}${separator}v=${buster}`
+  }
+  return url
+}
 
 
 

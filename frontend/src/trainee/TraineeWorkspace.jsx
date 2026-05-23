@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getEffectiveDarkMode, setUserThemePreference } from '../themePreferences'
 
 const sections = [
   { key: 'dashboard', label: 'Tableau de bord', icon: GridIcon },
@@ -23,10 +24,10 @@ const emptyPasswordForm = {
 }
 
 export default function TraineeWorkspace({ user, api, onLogout, settings = null }) {
-  const [active, setActive] = useState('dashboard')
+  const [active, setActive] = useState(() => window.localStorage.getItem('edudev.trainee.activeTab') || 'dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(() => (settings?.appearance?.mode ?? 'light') === 'dark' || window.localStorage.getItem('edudev-trainee-dark') === '1')
-  const [loading, setLoading] = useState(true)
+  const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
+  const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.trainee.cache'))
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toasts, setToasts] = useState([])
@@ -36,16 +37,52 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     module: 'all',
     trainer: 'all',
     type: 'all',
+    sort: 'recent',
   })
-  const [data, setData] = useState({
-    dashboard: null,
-    modules: [],
-    courses: [],
-    practicalWorks: [],
-    assessments: [],
+  const [data, setData] = useState(() => {
+    const defaultValue = {
+      dashboard: null,
+      modules: [],
+      courses: [],
+      practicalWorks: [],
+      assessments: [],
+    }
+    try {
+      const cached = window.localStorage.getItem('edudev.trainee.cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...defaultValue,
+            ...parsed,
+            modules: parsed.modules || [],
+            courses: parsed.courses || [],
+            practicalWorks: parsed.practicalWorks || [],
+            assessments: parsed.assessments || [],
+          }
+        }
+      }
+      return defaultValue
+    } catch {
+      return defaultValue
+    }
   })
   const [profileUser, setProfileUser] = useState(user)
-  const [profileForm, setProfileForm] = useState({ name: user?.name ?? '', email: user?.email ?? '' })
+  const [profileForm, setProfileForm] = useState(() => {
+    const specialty = user?.specialty || ''
+    const yr = specialty.includes('2') ? '2' : '1'
+    let opt = 'Full Stack'
+    if (specialty.includes('Mobile')) opt = 'Mobile'
+    if (specialty.includes('RV/RA')) opt = 'RV/RA'
+    return {
+      name: user?.name ?? '',
+      email: user?.email ?? '',
+      phone: user?.phone ?? '',
+      bio: user?.bio ?? '',
+      year_level: yr,
+      option: opt,
+    }
+  })
   const [profileErrors, setProfileErrors] = useState({})
   const [passwordForm, setPasswordForm] = useState(emptyPasswordForm)
   const [passwordErrors, setPasswordErrors] = useState({})
@@ -62,7 +99,15 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem('edudev-trainee-dark', darkMode ? '1' : '0')
+    window.localStorage.setItem('edudev.trainee.activeTab', active)
+  }, [active])
+
+  useEffect(() => {
+    setDarkMode(getEffectiveDarkMode(settings, user))
+  }, [settings, user])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
   useEffect(() => {
@@ -93,6 +138,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       moduleTitle: course.module?.title ?? 'Module',
       trainerName: course.trainer?.name ?? 'Formateur',
       date: course.created_at,
+      downloadStats: course.download_stats,
     }))
     const tps = data.practicalWorks.map((item) => ({
       ...item,
@@ -102,6 +148,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       moduleTitle: item.module?.title ?? item.course?.module?.title ?? 'Module',
       trainerName: item.trainer?.name ?? 'Formateur',
       date: item.due_at,
+      downloadStats: item.download_stats,
     }))
     const controles = data.assessments.map((item) => ({
       ...item,
@@ -111,6 +158,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       moduleTitle: item.module?.title ?? item.course?.module?.title ?? 'Module',
       trainerName: item.trainer?.name ?? 'Formateur',
       date: item.scheduled_at ?? item.created_at,
+      downloadStats: item.download_stats,
     }))
 
     return [...courses, ...tps, ...controles]
@@ -147,8 +195,17 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     return filteredResources
   }, [active, filteredResources])
 
+  function toggleDarkMode() {
+    setDarkMode((value) => {
+      const next = !value
+      setUserThemePreference(user, next ? 'dark' : 'light')
+      return next
+    })
+  }
+
   async function loadWorkspace({ silent = false } = {}) {
-    if (silent) {
+    const hasCache = !!window.localStorage.getItem('edudev.trainee.cache')
+    if (silent || hasCache) {
       setRefreshing(true)
     } else {
       setLoading(true)
@@ -165,10 +222,23 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       ])
 
       setData({ dashboard, modules, courses, practicalWorks, assessments })
+      window.localStorage.setItem('edudev.trainee.cache', JSON.stringify({ dashboard, modules, courses, practicalWorks, assessments }))
 
       if (profile?.user) {
         setProfileUser(profile.user)
-        setProfileForm({ name: profile.user.name ?? '', email: profile.user.email ?? '' })
+        const specialty = profile.user.specialty || ''
+        const yr = specialty.includes('2') ? '2' : '1'
+        let opt = 'Full Stack'
+        if (specialty.includes('Mobile')) opt = 'Mobile'
+        if (specialty.includes('RV/RA')) opt = 'RV/RA'
+        setProfileForm({
+          name: profile.user.name ?? '',
+          email: profile.user.email ?? '',
+          phone: profile.user.phone ?? '',
+          bio: profile.user.bio ?? '',
+          year_level: yr,
+          option: opt,
+        })
       }
     } catch (requestError) {
       pushToast('error', requestError.message)
@@ -192,11 +262,21 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     }
   }
 
+  function resolveUrl(url) {
+    if (!url) return ''
+    if (url.startsWith('/api')) {
+      const apiBase = import.meta.env.VITE_API_URL || '/api'
+      return url.replace('/api', apiBase)
+    }
+    return url
+  }
+
   async function openPdf(resource) {
     if (!resource.document) return
 
     try {
-      const response = await fetch(resource.document.preview_url, {
+      const url = resolveUrl(resource.document.preview_url)
+      const response = await fetch(url, {
         credentials: 'include',
         headers: { Accept: 'application/pdf' },
       })
@@ -204,9 +284,9 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       if (!response.ok) throw new Error("Impossible d'ouvrir ce PDF pour le moment.")
 
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
+      const urlBlob = URL.createObjectURL(blob)
       if (preview?.url) URL.revokeObjectURL(preview.url)
-      setPreview({ title: resource.title, url })
+      setPreview({ title: resource.title, url: urlBlob })
     } catch (requestError) {
       pushToast('error', requestError.message)
     }
@@ -216,7 +296,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     if (!resource.document) return
 
     try {
-      const response = await fetch(resource.document.download_url, { credentials: 'include' })
+      const url = resolveUrl(resource.document.download_url)
+      const response = await fetch(url, { credentials: 'include' })
       if (!response.ok) throw new Error('Téléchargement impossible.')
       const blob = await response.blob()
       const objectUrl = URL.createObjectURL(blob)
@@ -225,6 +306,9 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       anchor.download = resource.document.name
       anchor.click()
       URL.revokeObjectURL(objectUrl)
+
+      // Auto refresh workspace to update download stats instantly!
+      window.setTimeout(() => loadWorkspace({ silent: true }), 1000)
     } catch (requestError) {
       pushToast('error', requestError.message)
     }
@@ -273,15 +357,33 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       const body = new FormData()
       body.append('name', profileForm.name)
       body.append('email', profileForm.email)
+      body.append('phone', profileForm.phone || '')
+      body.append('bio', profileForm.bio || '')
+      body.append('year_level', profileForm.year_level)
+      body.append('option', profileForm.option)
       if (avatarFile) body.append('avatar', avatarFile)
 
       const response = await api('/profile', { method: 'POST', body })
       if (response?.user) {
+        window.localStorage.setItem('edudev.avatar.buster', Date.now())
         setProfileUser(response.user)
-        setProfileForm({ name: response.user.name ?? '', email: response.user.email ?? '' })
+        const specialty = response.user.specialty || ''
+        const yr = specialty.includes('2') ? '2' : '1'
+        let opt = 'Full Stack'
+        if (specialty.includes('Mobile')) opt = 'Mobile'
+        if (specialty.includes('RV/RA')) opt = 'RV/RA'
+        setProfileForm({
+          name: response.user.name ?? '',
+          email: response.user.email ?? '',
+          phone: response.user.phone ?? '',
+          bio: response.user.bio ?? '',
+          year_level: yr,
+          option: opt,
+        })
       }
       handleAvatarFile(null)
       pushToast('success', 'Profil mis à jour avec succès.')
+      window.setTimeout(() => loadWorkspace({ silent: true }), 500)
     } catch (requestError) {
       pushToast('error', requestError.message)
     } finally {
@@ -327,12 +429,12 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
             )}
           >
             <div className="mb-8 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
                 <BookIcon className="h-6 w-6" />
               </div>
-              <div>
+              <div className="flex flex-col">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">{platformName}</p>
-                <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Espace stagiaire</h1>
+                <h1 className="text-xl font-semibold leading-tight text-slate-900 dark:text-white">Espace stagiaire</h1>
               </div>
             </div>
 
@@ -372,7 +474,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                 </div>
                 <button
                   type="button"
-                  onClick={() => setDarkMode((value) => !value)}
+                  onClick={toggleDarkMode}
                   className={classNames('relative inline-flex h-7 w-12 items-center rounded-full transition', darkMode ? 'bg-orange-500' : 'bg-slate-300')}
                 >
                   <span className={classNames('inline-block h-5 w-5 rounded-full bg-white shadow transition', darkMode ? 'translate-x-6' : 'translate-x-1')}></span>
@@ -540,6 +642,60 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                           />
                         </div>
 
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <InputField
+                            label="Téléphone"
+                            type="tel"
+                            value={profileForm.phone}
+                            onChange={(value) => {
+                              setProfileForm((previous) => ({ ...previous, phone: value }))
+                            }}
+                          />
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Année d'études</span>
+                            <select
+                              value={profileForm.year_level}
+                              onChange={(event) => {
+                                setProfileForm((previous) => ({ ...previous, year_level: event.target.value }))
+                              }}
+                              className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
+                            >
+                              <option value="1">1ère année</option>
+                              <option value="2">2ème année</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        {profileForm.year_level === '2' && (
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Option (2ème année)</span>
+                            <select
+                              value={profileForm.option}
+                              onChange={(event) => {
+                                setProfileForm((previous) => ({ ...previous, option: event.target.value }))
+                              }}
+                              className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
+                            >
+                              <option value="Full Stack">Full Stack</option>
+                              <option value="Mobile">Mobile</option>
+                              <option value="RV/RA">RV/RA (Réalité Virtuelle & Réalité Augmentée)</option>
+                            </select>
+                          </label>
+                        )}
+
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Biographie</span>
+                          <textarea
+                            value={profileForm.bio}
+                            onChange={(event) => {
+                              setProfileForm((previous) => ({ ...previous, bio: event.target.value }))
+                            }}
+                            rows="3"
+                            className="w-full rounded-2xl border border-slate-300 bg-white p-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
+                            placeholder="Décrivez votre parcours..."
+                          ></textarea>
+                        </label>
+
                         <AvatarDropzone
                           user={currentUser}
                           previewUrl={avatarPreview}
@@ -555,7 +711,19 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                           saving={saving}
                           submitLabel="Enregistrer le profil"
                           onReset={() => {
-                            setProfileForm({ name: currentUser?.name ?? '', email: currentUser?.email ?? '' })
+                            const specialty = currentUser?.specialty || ''
+                            const yr = specialty.includes('2') ? '2' : '1'
+                            let opt = 'Full Stack'
+                            if (specialty.includes('Mobile')) opt = 'Mobile'
+                            if (specialty.includes('RV/RA')) opt = 'RV/RA'
+                            setProfileForm({
+                              name: currentUser?.name ?? '',
+                              email: currentUser?.email ?? '',
+                              phone: currentUser?.phone ?? '',
+                              bio: currentUser?.bio ?? '',
+                              year_level: yr,
+                              option: opt,
+                            })
                             setProfileErrors({})
                             handleAvatarFile(null)
                           }}
@@ -684,8 +852,8 @@ function SectionHeader({ eyebrow, title, description }) {
 
 function ResourceToolbar({ filters, moduleOptions, trainerOptions, onFilter, hideType = false }) {
   return (
-    <div className="mb-6 grid gap-3 lg:grid-cols-[1.2fr,220px,220px,190px]">
-      <label className="relative">
+    <div className="mb-6 flex flex-wrap gap-3">
+      <label className="relative min-w-[280px] flex-1">
         <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           value={filters.query}
@@ -711,6 +879,15 @@ function ResourceToolbar({ filters, moduleOptions, trainerOptions, onFilter, hid
           options={resourceTypes}
         />
       ) : null}
+      <SelectBox
+        value={filters.sort}
+        onChange={(value) => onFilter('sort', value)}
+        options={[
+          { value: 'recent', label: 'Trier par : Récent' },
+          { value: 'downloads_desc', label: 'Taux : Élevé → Faible' },
+          { value: 'downloads_asc', label: 'Taux : Faible → Élevé' }
+        ]}
+      />
     </div>
   )
 }
@@ -720,7 +897,7 @@ function SelectBox({ value, onChange, options }) {
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
+      className="h-12 min-w-[170px] flex-1 rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
     >
       {options.map((option) => (
         <option key={`${option.value}-${option.label}`} value={option.value}>{option.label}</option>
@@ -776,37 +953,148 @@ function ResourceGrid({ resources, emptyTitle, emptyDescription, onPreview, onDo
   )
 }
 
+function formatBytes(bytes) {
+  if (!bytes) return '0 Ko'
+  const k = 1024
+  const dm = 1
+  const sizes = ['octets', 'Ko', 'Mo', 'Go']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+}
+
 function ResourceCard({ resource, onPreview, onDownload }) {
-  const Icon = resource.resourceType === 'courses' ? BookIcon : resource.resourceType === 'tp' ? ClipboardIcon : ShieldIcon
+  const isCourse = resource.resourceType === 'courses'
+  const isTp = resource.resourceType === 'tp'
+
+  const Icon = isCourse ? BookIcon : isTp ? ClipboardIcon : ShieldIcon
+
+  const theme = useMemo(() => {
+    return {
+      accent: 'from-orange-500 to-orange-600',
+      textAccent: 'text-orange-600 dark:text-orange-400',
+      bgAccent: 'bg-orange-50 dark:bg-orange-500/10',
+      pill: 'bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 border-orange-100 dark:border-orange-500/10',
+      btnPrimary: 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-orange-500/20 text-white',
+      btnSecondary: 'border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800',
+      progress: 'bg-gradient-to-r from-orange-400 to-orange-500'
+    }
+  }, [])
+
+  const stats = resource.downloadStats || { percentage: 0, count: 0 }
 
   return (
-    <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-800 dark:bg-slate-950/60">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/20">
-            <Icon className="h-5 w-5" />
+    <article className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-white shadow-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:shadow-black/30 flex flex-col justify-between h-full">
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${theme.accent} text-white shadow-lg`}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-snug ${theme.pill}`}>
+                {resource.resourceLabel}
+              </span>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className={`inline-block h-2 w-2 rounded-full ${resource.document ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {resource.document ? 'PDF disponible' : 'PDF en cours'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <StatusBadge tone={resource.document ? 'success' : 'warning'}>
+            {resource.document ? 'Prêt' : 'En attente'}
+          </StatusBadge>
+        </div>
+
+        <div className="mt-5">
+          <h3 className="break-words text-xl font-bold leading-snug text-slate-950 dark:text-white">
+            {resource.title}
+          </h3>
+          <p className="mt-3 break-words text-sm leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-3">
+            {resource.body || 'Aucune description ou consigne renseignée pour ce contenu.'}
+          </p>
+        </div>
+
+        <div className="my-5 border-t border-dashed border-slate-200 dark:border-slate-800"></div>
+
+        <div className="grid gap-3 grid-cols-3">
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">Module</span>
+            <span className="mt-1 block truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title={resource.moduleTitle}>
+              {resource.moduleTitle}
+            </span>
           </div>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone={resource.document ? 'success' : 'warning'}>{resource.document ? 'PDF prêt' : 'PDF indisponible'}</StatusBadge>
-              <MiniPill label={resource.resourceLabel} />
-            </div>
-            <h3 className="mt-3 break-words text-lg font-semibold leading-tight text-slate-900 dark:text-white">{resource.title}</h3>
-            <p className="mt-2 break-words text-sm leading-6 text-slate-500 dark:text-slate-400">{resource.body || 'Aucune description renseignée.'}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">Formateur</span>
+            <span className="mt-1 block truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title={resource.trainerName}>
+              {resource.trainerName}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">Date</span>
+            <span className="mt-1 block truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+              {resource.date ? formatDate(resource.date) : 'Non définie'}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <CompactMetric label="Module" value={resource.moduleTitle} />
-        <CompactMetric label="Formateur" value={resource.trainerName} />
-        <CompactMetric label="Date" value={resource.date ? formatDate(resource.date) : 'Non définie'} />
-      </div>
+      <div className="border-t border-slate-100 bg-slate-50/70 p-6 dark:border-slate-800/80 dark:bg-slate-950/40">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <ActionButton onClick={() => onPreview(resource)} disabled={!resource.document}>Prévisualiser</ActionButton>
-        <ActionButton onClick={() => onDownload(resource)} disabled={!resource.document}>Télécharger</ActionButton>
-        {resource.document ? <MiniPill label={resource.document.name} /> : null}
+          <div className="flex-1 min-w-0 pr-4">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-500 dark:text-slate-400">Taux d'accès :</span>
+                <span className={`font-bold ${theme.textAccent}`}>{stats.percentage}%</span>
+              </div>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden relative shadow-inner">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${theme.progress}`}
+                style={{ width: `${stats.percentage}%` }}
+              ></div>
+            </div>
+            <span className="mt-1 block text-[10px] font-medium text-slate-400 dark:text-slate-500">
+              {stats.count} stagiaire{stats.count > 1 ? 's' : ''} unique{stats.count > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={!resource.document}
+              onClick={() => onPreview(resource)}
+              className={`h-10 rounded-2xl border px-4 text-xs font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnSecondary}`}
+            >
+              <EyeIcon className="h-3.5 w-3.5" />
+              Aperçu
+            </button>
+            <button
+              type="button"
+              disabled={!resource.document}
+              onClick={() => onDownload(resource)}
+              className={`h-10 rounded-2xl px-4 text-xs font-bold shadow-lg transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnPrimary}`}
+            >
+              <DownloadIcon className="h-3.5 w-3.5" />
+              Télécharger
+            </button>
+          </div>
+        </div>
+
+        {resource.document && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-100/80 px-3 py-2 text-[11px] font-semibold text-slate-500 border border-slate-200/50 dark:bg-slate-900/60 dark:text-slate-400 dark:border-slate-800/40">
+            <DocumentIcon className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="truncate flex-1" title={resource.document.name}>
+              {resource.document.name}
+            </span>
+            <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+              ({formatBytes(resource.document.size)})
+            </span>
+          </div>
+        )}
       </div>
     </article>
   )
@@ -856,7 +1144,7 @@ function ProfileCard({ title, eyebrow, icon: Icon, children }) {
 }
 
 function AvatarDropzone({ user, previewUrl, file, dragging, error, onDragging, onFile, onClear }) {
-  const displayUrl = previewUrl || user?.avatar_url
+  const displayUrl = resolveApiUrl(previewUrl || user?.avatar_url)
 
   function handleDrop(event) {
     event.preventDefault()
@@ -1093,7 +1381,7 @@ function CompactMetric({ label, value }) {
 }
 
 function Avatar({ user, size = 'h-20 w-20' }) {
-  if (user?.avatar_url) return <img src={user.avatar_url} alt={user.name ?? ''} className={classNames(size, 'rounded-3xl object-cover ring-4 ring-white/20')} />
+  if (user?.avatar_url) return <img src={resolveApiUrl(user.avatar_url)} alt={user.name ?? ''} className={classNames(size, 'rounded-3xl object-cover ring-4 ring-white/20')} />
   return <div className={classNames(size, 'flex items-center justify-center rounded-3xl bg-white/15 text-xl font-semibold ring-4 ring-white/20')}>{(user?.name ?? 'S').slice(0, 1).toUpperCase()}</div>
 }
 
@@ -1112,7 +1400,7 @@ function ToastStack({ toasts }) {
 function filterResources(resources, filters) {
   const search = normalize(filters.query)
 
-  return resources.filter((item) => {
+  const filtered = resources.filter((item) => {
     const moduleId = String(item.module_id ?? item.module?.id ?? item.course?.module_id ?? '')
     const trainerId = String(item.trainer_id ?? item.trainer?.id ?? '')
     const haystack = normalize([item.title, item.body, item.moduleTitle, item.trainerName, item.document?.name].filter(Boolean).join(' '))
@@ -1121,6 +1409,28 @@ function filterResources(resources, filters) {
     const matchesTrainer = filters.trainer === 'all' || trainerId === String(filters.trainer)
     const matchesType = filters.type === 'all' || item.resourceType === filters.type
     return matchesSearch && matchesModule && matchesTrainer && matchesType
+  })
+
+  if (filters.sort === 'downloads_desc') {
+    return filtered.sort((a, b) => {
+      const pctA = a.downloadStats?.percentage ?? 0
+      const pctB = b.downloadStats?.percentage ?? 0
+      return pctB - pctA
+    })
+  }
+
+  if (filters.sort === 'downloads_asc') {
+    return filtered.sort((a, b) => {
+      const pctA = a.downloadStats?.percentage ?? 0
+      const pctB = b.downloadStats?.percentage ?? 0
+      return pctA - pctB
+    })
+  }
+
+  return filtered.sort((a, b) => {
+    const dateA = a.created_at || a.date || ''
+    const dateB = b.created_at || b.date || ''
+    return dateB.localeCompare(dateA)
   })
 }
 
@@ -1248,4 +1558,20 @@ function CheckIcon({ className = 'h-5 w-5' }) {
 
 function CloseIcon({ className = 'h-5 w-5' }) {
   return <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+}
+
+function DownloadIcon({ className = 'h-5 w-5' }) {
+  return <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true"><path d="M12 4.5v10.5M8 11.5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9A2.5 2.5 0 0 0 19 17.5v-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+}
+
+function resolveApiUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('/api')) {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    const finalUrl = url.replace('/api', apiBase)
+    const buster = window.localStorage.getItem('edudev.avatar.buster') || '1'
+    const separator = finalUrl.includes('?') ? '&' : '?'
+    return `${finalUrl}${separator}v=${buster}`
+  }
+  return url
 }

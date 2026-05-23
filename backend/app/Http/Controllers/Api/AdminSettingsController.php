@@ -84,8 +84,7 @@ class AdminSettingsController extends Controller
         match ($data['action']) {
             'clear_cache' => $this->callArtisan(['cache:clear', 'config:clear', 'route:clear', 'view:clear']),
             'optimize' => $this->callArtisan(['optimize:clear', 'optimize']),
-            'maintenance_on' => Artisan::call('down', ['--render' => 'errors::503']),
-            'maintenance_off' => Artisan::call('up'),
+            'maintenance_on', 'maintenance_off' => null,
             'force_logout' => $this->forceLogout($request),
         };
 

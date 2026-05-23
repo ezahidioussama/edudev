@@ -1,8 +1,9 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import AdminWorkspace from './admin/AdminWorkspace'
 import TrainerWorkspace from './trainer/TrainerWorkspace'
 import TraineeWorkspace from './trainee/TraineeWorkspace'
+import { getEffectiveDarkMode } from './themePreferences'
 
 const API_BASE = resolveApiBase()
 const AUTH_USER_KEY = 'edudev.auth.user'
@@ -26,6 +27,10 @@ const emptyResources = {
 const emptyRegister = {
   name: '',
   email: '',
+  phone: '',
+  filiere: 'Développement Digital',
+  year_level: '1',
+  option: 'Full Stack',
   password: '',
   password_confirmation: '',
 }
@@ -44,6 +49,8 @@ const emptyTrainer = {
 const emptyModule = {
   title: '',
   description: '',
+  year_level: '1',
+  option: '',
   trainer_ids: [],
 }
 
@@ -86,7 +93,7 @@ function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [showRegisterPasswordConfirmation, setShowRegisterPasswordConfirmation] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(() => window.localStorage.getItem('edudev.activeTab') || 'overview')
   const [editing, setEditing] = useState({
     trainer: null,
     module: null,
@@ -116,7 +123,8 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [settings, setSettings] = useState(defaultSettings)
 
-  const platformName = settings.general?.platform_name || 'EduDev'
+  const platformName = settings?.general?.platform_name || 'EduDev'
+  const maintenanceEnabled = settings?.maintenance?.enabled === true
 
   const availableTabs = useMemo(() => {
     if (!user) {
@@ -145,8 +153,8 @@ function App() {
   }, [])
 
   useEffect(() => {
-    applyPlatformSettings(settings)
-  }, [settings])
+    applyPlatformSettings(settings, user)
+  }, [settings, user])
 
   useEffect(() => {
     function syncRoute() {
@@ -165,7 +173,13 @@ function App() {
   }, [user])
 
   useEffect(() => {
-    applyPlatformSettings(settings)
+    if (user && user.role === 'admin') {
+      window.localStorage.setItem('edudev.activeTab', activeTab)
+    }
+  }, [activeTab, user])
+
+  useEffect(() => {
+    applyPlatformSettings(settings, user)
   }, [user])
 
   async function loadSettings() {
@@ -177,8 +191,8 @@ function App() {
 
       if (!response.ok) return
 
-      const data = await response.json()
-      if (data.settings) {
+      const data = await parseJsonResponse(response)
+      if (data?.settings && typeof data.settings === 'object') {
         setSettings(data.settings)
       }
     } catch {
@@ -188,7 +202,7 @@ function App() {
 
   function handleSettingsChange(nextSettings) {
     setSettings(nextSettings)
-    applyPlatformSettings(nextSettings)
+    applyPlatformSettings(nextSettings, user)
   }
 
   async function bootstrap() {
@@ -269,7 +283,12 @@ function App() {
       }))
     }
 
-    setActiveTab('overview')
+    const savedTab = window.localStorage.getItem('edudev.activeTab')
+    if (savedTab && availableTabs.includes(savedTab)) {
+      setActiveTab(savedTab)
+    } else {
+      setActiveTab('overview')
+    }
     resetForms(currentUser)
   }
 
@@ -340,26 +359,19 @@ function App() {
       throw new Error('Connexion impossible au backend. Lance Laravel avec: php artisan serve')
     }
 
-    const raw = await response.text()
-    let data = {}
-
-    try {
-      data = raw ? JSON.parse(raw) : {}
-    } catch {
-      data = {}
-    }
+    const data = await parseJsonResponse(response)
 
     if (!response.ok) {
-      const validationErrors = data.errors ? Object.values(data.errors).flat().join(' ') : ''
+      const validationErrors = data?.errors ? Object.values(data.errors).flat().join(' ') : ''
       const requestError = new Error(
         validationErrors ||
-          data.message ||
+          data?.message ||
           `La requête a échoué sur ${API_BASE}${path}. Vérifiez que Laravel est lancé et que l'API est accessible.`
       )
 
       requestError.status = response.status
 
-      if (response.status === 403 && ['Your account has been deactivated.', 'Votre compte a été désactivé.'].includes(data.message)) {
+      if (response.status === 403 && ['Your account has been deactivated.', 'Votre compte a été désactivé.'].includes(data?.message)) {
         setCsrfToken('')
         clearStoredUser()
         setUser(null)
@@ -369,6 +381,10 @@ function App() {
       }
 
       throw requestError
+    }
+
+    if (data === null) {
+      throw new Error(`Le backend n'a pas renvoyé du JSON sur ${API_BASE}${path}. Vérifiez VITE_API_URL ou le proxy Vite.`)
     }
 
     return data
@@ -386,7 +402,11 @@ function App() {
       },
     })
 
-    const data = await response.json()
+    const data = await parseJsonResponse(response)
+    if (!data?.csrf_token) {
+      throw new Error(`Le backend n'a pas renvoyé un token CSRF JSON sur ${API_BASE}/csrf-token.`)
+    }
+
     setCsrfToken(data.csrf_token)
 
     return data.csrf_token
@@ -553,6 +573,8 @@ function App() {
       module: {
         title: moduleItem.title,
         description: moduleItem.description ?? '',
+        year_level: String(moduleItem.year_level ?? '1'),
+        option: moduleItem.option ?? '',
         trainer_ids: (moduleItem.trainers ?? []).map((item) => String(item.id)),
       },
     }))
@@ -649,6 +671,10 @@ function App() {
         handleRegister={handleRegister}
       />
     )
+  }
+
+  if (maintenanceEnabled && user.role !== 'admin') {
+    return <MaintenanceExperience platformName={platformName} user={user} onLogout={handleLogout} />
   }
 
   if (user.role === 'trainer') {
@@ -751,6 +777,11 @@ function App() {
             renderItem={(moduleItem) => (
               <>
                 <strong>{moduleItem.title}</strong>
+                <span>
+                  {moduleItem.year_level === 2
+                    ? `2ème année${moduleItem.option ? ` - ${moduleItem.option}` : ' - Commune'}`
+                    : '1ère année'}
+                </span>
                 <span>{moduleItem.description}</span>
                 <span>{moduleItem.trainers?.map((item) => item.name).join(', ') || 'Aucun formateur'}</span>
               </>
@@ -762,6 +793,28 @@ function App() {
             <h3>{editing.module ? 'Modifier module' : 'Nouveau module'}</h3>
             <TextField label="Titre" value={forms.module.title} onChange={(value) => updateForm('module', 'title', value, setForms)} />
             <TextAreaField label="Description" value={forms.module.description} onChange={(value) => updateForm('module', 'description', value, setForms)} />
+            <SelectField
+              label="Année d'études"
+              value={forms.module.year_level}
+              options={[
+                { value: '1', label: '1ère année' },
+                { value: '2', label: '2ème année' },
+              ]}
+              onChange={(value) => updateForm('module', 'year_level', value, setForms)}
+            />
+            {forms.module.year_level === '2' && (
+              <SelectField
+                label="Option (2ème année)"
+                value={forms.module.option}
+                options={[
+                  { value: '', label: 'Commune (Toutes les options)' },
+                  { value: 'Full Stack', label: 'Full Stack' },
+                  { value: 'Mobile', label: 'Mobile' },
+                  { value: 'RV/RA', label: 'RV/RA' },
+                ]}
+                onChange={(value) => updateForm('module', 'option', value, setForms)}
+              />
+            )}
             <MultiSelectField
               label="Formateurs"
               value={forms.module.trainer_ids}
@@ -1233,6 +1286,53 @@ function AuthExperience({
                   onChange={(value) => setAuthForm({ ...authForm, email: value })}
                 />
 
+                <AuthField
+                  label="Téléphone"
+                  type="tel"
+                  placeholder="06 12 34 56 78"
+                  value={authForm.phone}
+                  autoComplete="tel"
+                  onChange={(value) => setAuthForm({ ...authForm, phone: value })}
+                />
+
+                <label className="field auth-field">
+                  <span>Filière</span>
+                  <select
+                    value={authForm.filiere}
+                    onChange={(event) => setAuthForm({ ...authForm, filiere: event.target.value })}
+                    required
+                  >
+                    <option value="Développement Digital">Développement Digital</option>
+                  </select>
+                </label>
+
+                <label className="field auth-field">
+                  <span>Année d'études</span>
+                  <select
+                    value={authForm.year_level}
+                    onChange={(event) => setAuthForm({ ...authForm, year_level: event.target.value })}
+                    required
+                  >
+                    <option value="1">1ère année</option>
+                    <option value="2">2ème année</option>
+                  </select>
+                </label>
+
+                {authForm.year_level === '2' && (
+                  <label className="field auth-field">
+                    <span>Option (2ème année)</span>
+                    <select
+                      value={authForm.option}
+                      onChange={(event) => setAuthForm({ ...authForm, option: event.target.value })}
+                      required
+                    >
+                      <option value="Full Stack">Full Stack</option>
+                      <option value="Mobile">Mobile</option>
+                      <option value="RV/RA">RV/RA (Réalité Virtuelle & Réalité Augmentée)</option>
+                    </select>
+                  </label>
+                )}
+
                 <PasswordField
                   label="Mot de passe"
                   placeholder="Créez votre mot de passe"
@@ -1266,6 +1366,45 @@ function AuthExperience({
         </section>
       </div>
     </main>
+  )
+}
+
+function MaintenanceExperience({ platformName, user, onLogout }) {
+  return (
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-orange-500 text-white shadow-xl shadow-orange-500/25">
+          <MaintenanceIcon />
+        </div>
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{platformName}</p>
+        <h1 className="mt-4 text-3xl font-bold sm:text-4xl">Application en maintenance</h1>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
+          Votre espace est temporairement indisponible pendant une opération de maintenance. Les administrateurs peuvent continuer à accéder à la plateforme.
+        </p>
+        {user?.name ? (
+          <p className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">
+            Connecté en tant que {user.name}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={onLogout}
+          className="mt-8 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition hover:bg-orange-400"
+        >
+          Déconnexion
+        </button>
+      </div>
+    </main>
+  )
+}
+
+function MaintenanceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8" aria-hidden="true">
+      <path d="M12 3.75 21 19.5H3L12 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 9v4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M12 16.4h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
   )
 }
 
@@ -1522,6 +1661,18 @@ function resolveApiBase() {
   return import.meta.env.VITE_API_URL || '/api'
 }
 
+async function parseJsonResponse(response) {
+  const raw = await response.text()
+
+  if (!raw) return {}
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 function readStoredUser() {
   try {
     const rawUser = window.localStorage.getItem(AUTH_USER_KEY)
@@ -1532,14 +1683,19 @@ function readStoredUser() {
   }
 }
 
-function applyPlatformSettings(settings) {
-  const mode = settings.appearance?.mode ?? 'light'
-  const prefersDark = window.localStorage.getItem('edudev-admin-dark') === '1' || window.localStorage.getItem('edudev-trainer-dark') === '1'
-  const useDark = mode === 'dark' || (mode === 'system' && prefersDark)
+function applyPlatformSettings(settings, user = null) {
+  const safeSettings = settings || defaultSettings
+  const useDark = getEffectiveDarkMode(safeSettings, user)
 
+  // Apply dark mode globally on <html> — affects login page + all workspaces
   document.documentElement.classList.toggle('dark', useDark)
-  document.documentElement.style.setProperty('--primary-color', settings.appearance?.primary_color ?? '#ff7900')
-  document.title = settings.general?.platform_name || 'EduDev'
+
+  // Update CSS variable --primary-color on :root → var(--accent) everywhere updates automatically
+  const color = safeSettings.appearance?.primary_color ?? '#ff7900'
+  document.documentElement.style.setProperty('--primary-color', color)
+
+  // Also update document title
+  document.title = safeSettings.general?.platform_name || 'EduDev'
 }
 
 function storeUser(user) {

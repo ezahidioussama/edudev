@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Modal from '../components/Modal'
 
 const sections = [
@@ -39,8 +39,8 @@ const defaultSettings = {
 
 export default function AdminWorkspace({ user, api, onLogout, settings: appSettings = defaultSettings, onSettingsChange = null }) {
   const [darkMode, setDarkMode] = useState(() => (appSettings.appearance?.mode ?? 'light') === 'dark' || window.localStorage.getItem('edudev-admin-dark') === '1')
-  const [active, setActive] = useState('dashboard')
-  const [loading, setLoading] = useState(true)
+  const [active, setActive] = useState(() => window.localStorage.getItem('edudev.admin.activeTab') || 'dashboard')
+  const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.admin.cache'))
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [error, setError] = useState('')
@@ -52,16 +52,39 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [trainerFilter, setTrainerFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [preview, setPreview] = useState(null)
-  const [data, setData] = useState({
-    dashboard: null,
-    users: [],
-    modules: [],
-    courses: [],
-    practicalWorks: [],
-    assessments: [],
-    profile: user,
-    settings: defaultSettings,
-    assignmentHistory: [],
+  const [data, setData] = useState(() => {
+    const defaultValue = {
+      dashboard: null,
+      users: [],
+      modules: [],
+      courses: [],
+      practicalWorks: [],
+      assessments: [],
+      profile: user,
+      settings: defaultSettings,
+      assignmentHistory: [],
+    }
+    try {
+      const cached = window.localStorage.getItem('edudev.admin.cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...defaultValue,
+            ...parsed,
+            users: parsed.users || [],
+            modules: parsed.modules || [],
+            courses: parsed.courses || [],
+            practicalWorks: parsed.practicalWorks || [],
+            assessments: parsed.assessments || [],
+            assignmentHistory: parsed.assignmentHistory || [],
+          }
+        }
+      }
+      return defaultValue
+    } catch {
+      return defaultValue
+    }
   })
   const [modals, setModals] = useState({ user: false, module: false, password: false })
   const [editingUser, setEditingUser] = useState(null)
@@ -76,6 +99,10 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   useEffect(() => {
     loadAdmin()
   }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('edudev.admin.activeTab', active)
+  }, [active])
 
   useEffect(() => {
     setSettingsForm(appSettings)
@@ -126,8 +153,13 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const totalPages = Math.max(1, Math.ceil(contentItems.length / 8))
   const stats = data.dashboard?.stats ?? {}
 
-  async function loadAdmin() {
-    setLoading(true)
+  async function loadAdmin({ silent = false } = {}) {
+    const hasCache = !!window.localStorage.getItem('edudev.admin.cache')
+    if (silent || hasCache) {
+      // Silent load in background, do not block UI with loader
+    } else {
+      setLoading(true)
+    }
     setError('')
 
     try {
@@ -143,7 +175,9 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
         api('/admin/module-assignments'),
       ])
 
-      setData({ dashboard, users, modules, courses, practicalWorks, assessments, profile: profile.user, settings: settings.settings, assignmentHistory: assignments.history ?? [] })
+      const nextData = { dashboard, users, modules, courses, practicalWorks, assessments, profile: profile.user, settings: settings.settings, assignmentHistory: assignments.history ?? [] }
+      setData(nextData)
+      window.localStorage.setItem('edudev.admin.cache', JSON.stringify(nextData))
       setProfileForm({ name: profile.user.name, email: profile.user.email, avatar: null })
       setSettingsForm(settings.settings)
       onSettingsChange?.(settings.settings)
@@ -273,6 +307,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       form.append('email', profileForm.email)
       if (profileForm.avatar) form.append('avatar', profileForm.avatar)
       await api('/profile', { method: 'POST', body: form })
+      window.localStorage.setItem('edudev.avatar.buster', Date.now())
       await loadAdmin()
       showToast('Profil mis à jour.')
     } catch (requestError) {
@@ -310,8 +345,10 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       setSettingsForm(response.settings)
       setData((previous) => ({ ...previous, settings: response.settings }))
       applyThemePreference(response.settings.appearance?.mode)
+      const isDark = response.settings.appearance?.mode === 'dark'
+      window.localStorage.setItem('edudev-admin-dark', isDark ? '1' : '0')
       onSettingsChange?.(response.settings)
-      showToast('Paramètres mis à jour.')
+      showToast('Paramètres mis à jour sur toute la plateforme.')
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -429,16 +466,26 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
     }
   }
 
+  function resolveUrl(url) {
+    if (!url) return ''
+    if (url.startsWith('/api')) {
+      const apiBase = import.meta.env.VITE_API_URL || '/api'
+      return url.replace('/api', apiBase)
+    }
+    return url
+  }
+
   async function openPdf(document, title) {
     if (!document) return
 
     try {
-      const response = await fetch(document.preview_url, { credentials: 'include', headers: { Accept: 'application/pdf' } })
+      const url = resolveUrl(document.preview_url)
+      const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/pdf' } })
       if (!response.ok) throw new Error('Impossible d ouvrir ce PDF.')
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
+      const urlBlob = URL.createObjectURL(blob)
       if (preview?.url) URL.revokeObjectURL(preview.url)
-      setPreview({ title, url })
+      setPreview({ title, url: urlBlob })
     } catch (requestError) {
       setError(requestError.message)
     }
@@ -448,7 +495,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
     if (!file) return
 
     try {
-      const response = await fetch(file.download_url, { credentials: 'include' })
+      const url = resolveUrl(file.download_url)
+      const response = await fetch(url, { credentials: 'include' })
       if (!response.ok) throw new Error('Telechargement impossible.')
       const blob = await response.blob()
       const objectUrl = URL.createObjectURL(blob)
@@ -496,13 +544,44 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-500">Administration</p>
                 <h2 className="mt-1 text-2xl font-bold text-slate-950 dark:text-white">{sectionTitle(active)}</h2>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select className="admin-input max-w-xs lg:hidden dark:border-slate-700 dark:bg-slate-950 dark:text-white" value={active} onChange={(event) => setActive(event.target.value)}>
                   {sections.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 </select>
-                <button className="secondary-admin-button" type="button" onClick={() => setDarkMode((value) => !value)}>{darkMode ? 'Mode clair' : 'Mode sombre'}</button>
-                <button className="secondary-admin-button" type="button" onClick={loadAdmin}>Actualiser</button>
-                <button className="primary-admin-button" type="button" onClick={onLogout}>Déconnexion</button>
+                {/* Dark mode toggle — same style as trainer/trainee */}
+                <button
+                  type="button"
+                  onClick={() => setDarkMode((value) => !value)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400"
+                  title={darkMode ? 'Passer en mode clair' : 'Passer en mode sombre'}
+                >
+                  {darkMode ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m8.66-9H21M3 12H2m15.364-6.364l-.707.707M7.05 16.95l-.707.707m11.314 0l-.707-.707M7.757 7.757l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  type="button"
+                  onClick={() => loadAdmin({ silent: true })}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Actualiser
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5"
+                  type="button"
+                  onClick={onLogout}
+                >
+                  Déconnexion
+                </button>
               </div>
             </header>
 
@@ -991,7 +1070,7 @@ function LoadingGrid() {
 }
 
 function Avatar({ user }) {
-  if (user?.avatar_url) return <img src={user.avatar_url} alt="" className="h-20 w-20 rounded-3xl object-cover ring-4 ring-white/20" />
+  if (user?.avatar_url) return <img src={resolveApiUrl(user.avatar_url)} alt="" className="h-20 w-20 rounded-3xl object-cover ring-4 ring-white/20" />
   return <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 text-2xl font-bold ring-4 ring-white/20">{(user?.name ?? 'A').slice(0, 1).toUpperCase()}</div>
 }
 
@@ -1020,4 +1099,16 @@ function formatDate(value) {
 
 function classNames(...values) {
   return values.filter(Boolean).join(' ')
+}
+
+function resolveApiUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('/api')) {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    const finalUrl = url.replace('/api', apiBase)
+    const buster = window.localStorage.getItem('edudev.avatar.buster') || '1'
+    const separator = finalUrl.includes('?') ? '&' : '?'
+    return `${finalUrl}${separator}v=${buster}`
+  }
+  return url
 }
