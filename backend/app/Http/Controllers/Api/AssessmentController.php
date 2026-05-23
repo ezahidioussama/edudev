@@ -141,11 +141,45 @@ class AssessmentController extends Controller
         $this->authorizeStudentAccess($request, $assessment);
         abort_unless($assessment->hasDocument(), 404);
 
+        if ($request->user() && $request->user()->role === 'trainee') {
+            try {
+                \DB::table('document_downloads')->updateOrInsert([
+                    'user_id' => $request->user()->id,
+                    'downloadable_type' => Assessment::class,
+                    'downloadable_id' => $assessment->id,
+                ], [
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Ignore DB logging errors
+            }
+        }
+
         return Storage::disk($assessment->document_disk)->download(
             $assessment->document_path,
             $assessment->document_name,
             ['Content-Type' => $assessment->document_mime_type ?: 'application/pdf']
         );
+    }
+
+    private function getDownloadStats(string $type, int $id, int $yearLevel): array
+    {
+        $totalTrainees = \App\Models\User::query()
+            ->where('role', 'trainee')
+            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%')
+            ->count();
+
+        $downloadedCount = \DB::table('document_downloads')
+            ->where('downloadable_type', $type)
+            ->where('downloadable_id', $id)
+            ->count();
+
+        $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
+
+        return [
+            'count' => $downloadedCount,
+            'percentage' => min(100, $percentage),
+        ];
     }
 
     private function serializeAssessment(Assessment $assessment): array
@@ -170,6 +204,7 @@ class AssessmentController extends Controller
                 'preview_url' => "/api/assessments/{$assessment->id}/preview",
                 'download_url' => "/api/assessments/{$assessment->id}/download",
             ] : null,
+            'download_stats' => $this->getDownloadStats(Assessment::class, $assessment->id, $assessment->module?->year_level ?? 1),
             'created_at' => $assessment->created_at,
         ];
     }

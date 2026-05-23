@@ -24,7 +24,27 @@ class CourseController extends Controller
         }
 
         if ($request->user()?->role === 'trainee') {
-            // Trainees can see all courses; no enrollment filter needed
+            $specialty = (string) $request->user()->specialty;
+            $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+            $option = null;
+            if ($yearLevel === 2) {
+                if (str_contains($specialty, 'Full Stack')) {
+                    $option = 'Full Stack';
+                } elseif (str_contains($specialty, 'Mobile')) {
+                    $option = 'Mobile';
+                } elseif (str_contains($specialty, 'RV/RA')) {
+                    $option = 'RV/RA';
+                }
+            }
+
+            $query->whereHas('module', function ($builder) use ($yearLevel, $option) {
+                $builder->where('year_level', $yearLevel)
+                        ->where(function ($q) use ($option) {
+                            $q->whereNull('option')
+                              ->orWhere('option', $option);
+                        });
+            });
         }
 
         if ($moduleId = $request->integer('module_id')) {
@@ -149,6 +169,20 @@ class CourseController extends Controller
         $this->authorizeTrainerOwnership($request, $course);
         abort_unless($course->hasDocument(), 404);
 
+        if ($request->user() && $request->user()->role === 'trainee') {
+            try {
+                \DB::table('document_downloads')->updateOrInsert([
+                    'user_id' => $request->user()->id,
+                    'downloadable_type' => Course::class,
+                    'downloadable_id' => $course->id,
+                ], [
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Ignore DB logging errors
+            }
+        }
+
         return Storage::disk($course->document_disk)->download(
             $course->document_path,
             $course->document_name,
@@ -179,6 +213,31 @@ class CourseController extends Controller
         }
     }
 
+    private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
+    {
+        $traineeQuery = \App\Models\User::query()
+            ->where('role', 'trainee')
+            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+        if ($yearLevel === 2 && $option) {
+            $traineeQuery->where('specialty', 'like', "%{$option}%");
+        }
+
+        $totalTrainees = $traineeQuery->count();
+
+        $downloadedCount = \DB::table('document_downloads')
+            ->where('downloadable_type', $type)
+            ->where('downloadable_id', $id)
+            ->count();
+
+        $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
+
+        return [
+            'count' => $downloadedCount,
+            'percentage' => min(100, $percentage),
+        ];
+    }
+
     private function serializeCourse(Course $course, bool $includeRelations = false): array
     {
         $payload = [
@@ -198,6 +257,7 @@ class CourseController extends Controller
                 'preview_url' => "/api/courses/{$course->id}/preview",
                 'download_url' => "/api/courses/{$course->id}/download",
             ] : null,
+            'download_stats' => $this->getDownloadStats(Course::class, $course->id, $course->module?->year_level ?? 1, $course->module?->option),
             'practical_works_count' => $course->practical_works_count ?? 0,
             'assessments_count' => $course->assessments_count ?? 0,
             'trainees_count' => $course->trainees_count ?? 0,

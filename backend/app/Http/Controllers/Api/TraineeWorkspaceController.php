@@ -12,8 +12,47 @@ use Illuminate\Http\Request;
 
 class TraineeWorkspaceController extends Controller
 {
+    private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
+    {
+        $traineeQuery = \App\Models\User::query()
+            ->where('role', 'trainee')
+            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+        if ($yearLevel === 2 && $option) {
+            $traineeQuery->where('specialty', 'like', "%{$option}%");
+        }
+
+        $totalTrainees = $traineeQuery->count();
+
+        $downloadedCount = \DB::table('document_downloads')
+            ->where('downloadable_type', $type)
+            ->where('downloadable_id', $id)
+            ->count();
+
+        $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
+
+        return [
+            'count' => $downloadedCount,
+            'percentage' => min(100, $percentage),
+        ];
+    }
+
     public function modules(Request $request): JsonResponse
     {
+        $specialty = (string) $request->user()->specialty;
+        $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+        $option = null;
+        if ($yearLevel === 2) {
+            if (str_contains($specialty, 'Full Stack')) {
+                $option = 'Full Stack';
+            } elseif (str_contains($specialty, 'Mobile')) {
+                $option = 'Mobile';
+            } elseif (str_contains($specialty, 'RV/RA')) {
+                $option = 'RV/RA';
+            }
+        }
+
         $practicalWorkCounts = PracticalWork::query()
             ->join('courses', 'courses.id', '=', 'practical_works.course_id')
             ->selectRaw('courses.module_id, count(*) as aggregate')
@@ -27,6 +66,11 @@ class TraineeWorkspaceController extends Controller
 
         return response()->json(
             Module::query()
+                ->where('year_level', $yearLevel)
+                ->where(function ($q) use ($option) {
+                    $q->whereNull('option')
+                      ->orWhere('option', $option);
+                })
                 ->with([
                     'courses.trainer:id,name',
                     'trainers:id,name,email,specialty',
@@ -51,8 +95,29 @@ class TraineeWorkspaceController extends Controller
 
     public function practicalWorks(Request $request): JsonResponse
     {
+        $specialty = (string) $request->user()->specialty;
+        $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+        $option = null;
+        if ($yearLevel === 2) {
+            if (str_contains($specialty, 'Full Stack')) {
+                $option = 'Full Stack';
+            } elseif (str_contains($specialty, 'Mobile')) {
+                $option = 'Mobile';
+            } elseif (str_contains($specialty, 'RV/RA')) {
+                $option = 'RV/RA';
+            }
+        }
+
         return response()->json(
             PracticalWork::query()
+                ->whereHas('course.module', function ($builder) use ($yearLevel, $option) {
+                    $builder->where('year_level', $yearLevel)
+                            ->where(function ($q) use ($option) {
+                                $q->whereNull('option')
+                                  ->orWhere('option', $option);
+                            });
+                })
                 ->with(['course:id,title,module_id', 'course.module:id,title', 'trainer:id,name'])
                 ->orderBy('due_at')
                 ->get()
@@ -73,14 +138,36 @@ class TraineeWorkspaceController extends Controller
                         'preview_url' => "/api/practical-works/{$work->id}/preview",
                         'download_url' => "/api/practical-works/{$work->id}/download",
                     ] : null,
+                    'download_stats' => $this->getDownloadStats(PracticalWork::class, $work->id, $work->course?->module?->year_level ?? 1, $work->course?->module?->option),
                 ])
         );
     }
 
     public function assessments(Request $request): JsonResponse
     {
+        $specialty = (string) $request->user()->specialty;
+        $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+        $option = null;
+        if ($yearLevel === 2) {
+            if (str_contains($specialty, 'Full Stack')) {
+                $option = 'Full Stack';
+            } elseif (str_contains($specialty, 'Mobile')) {
+                $option = 'Mobile';
+            } elseif (str_contains($specialty, 'RV/RA')) {
+                $option = 'RV/RA';
+            }
+        }
+
         return response()->json(
             Assessment::query()
+                ->whereHas('module', function ($builder) use ($yearLevel, $option) {
+                    $builder->where('year_level', $yearLevel)
+                            ->where(function ($q) use ($option) {
+                                $q->whereNull('option')
+                                  ->orWhere('option', $option);
+                            });
+                })
                 ->with(['module:id,title', 'course:id,title,module_id', 'trainer:id,name'])
                 ->orderBy('scheduled_at')
                 ->get()
@@ -104,6 +191,7 @@ class TraineeWorkspaceController extends Controller
                         'preview_url' => "/api/assessments/{$assessment->id}/preview",
                         'download_url' => "/api/assessments/{$assessment->id}/download",
                     ] : null,
+                    'download_stats' => $this->getDownloadStats(Assessment::class, $assessment->id, $assessment->module?->year_level ?? 1, $assessment->module?->option),
                     'created_at' => $assessment->created_at,
                 ])
         );

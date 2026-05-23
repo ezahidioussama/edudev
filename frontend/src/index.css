@@ -1,5 +1,29 @@
 @import 'tailwindcss';
 
+/*
+ * ── Dynamic primary color theming ─────────────────────────────────────────
+ * Tailwind v4 exposes color utilities via CSS variables: --color-orange-*.
+ * Remapping the full orange palette to derive from --primary-color means
+ * every Tailwind class that uses orange (bg-orange-*, text-orange-*,
+ * border-orange-*, from-orange-*, shadow-orange-*, ring-orange-* …)
+ * will automatically update when the admin changes the primary color.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+:root {
+  --color-orange-50:  color-mix(in srgb, var(--primary-color, #ff7900)  8%, white);
+  --color-orange-100: color-mix(in srgb, var(--primary-color, #ff7900) 14%, white);
+  --color-orange-200: color-mix(in srgb, var(--primary-color, #ff7900) 28%, white);
+  --color-orange-300: color-mix(in srgb, var(--primary-color, #ff7900) 48%, white);
+  --color-orange-400: color-mix(in srgb, var(--primary-color, #ff7900) 70%, white);
+  --color-orange-500: var(--primary-color, #ff7900);
+  --color-orange-600: color-mix(in srgb, var(--primary-color, #ff7900) 88%, black);
+  --color-orange-700: color-mix(in srgb, var(--primary-color, #ff7900) 72%, black);
+  --color-orange-800: color-mix(in srgb, var(--primary-color, #ff7900) 52%, black);
+  --color-orange-900: color-mix(in srgb, var(--primary-color, #ff7900) 34%, black);
+  --color-orange-950: color-mix(in srgb, var(--primary-color, #ff7900) 18%, black);
+}
+
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -12,9 +36,11 @@
   --muted: #64748b;
   --tag: rgba(255, 121, 0, 0.1);
   --warning: #d97706;
-  --accent: #ff7900;
-  --accent-strong: #e46d00;
-  --accent-soft: #fff2e8;
+  --primary-color: #ff7900;
+  --accent: var(--primary-color, #ff7900);
+  --accent-strong: color-mix(in srgb, var(--primary-color, #ff7900) 85%, black);
+  --accent-soft: color-mix(in srgb, var(--primary-color, #ff7900) 12%, white);
+  --accent-shadow: color-mix(in srgb, var(--primary-color, #ff7900) 25%, transparent);
   --danger: #dc2626;
   --success: #059669;
   --shadow:
@@ -108,18 +134,18 @@ textarea::placeholder {
 }
 
 .admin-input:focus {
-  border-color: #ff7900;
-  box-shadow: 0 0 0 4px rgba(255, 121, 0, 0.14);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-shadow, rgba(255, 121, 0, 0.14));
 }
 
 .primary-admin-button {
   border-radius: 1rem;
-  background: linear-gradient(135deg, #ff7900, #e46d00);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   padding: 0.75rem 1rem;
   color: #ffffff;
   font-size: 0.875rem;
   font-weight: 800;
-  box-shadow: 0 16px 32px rgba(255, 121, 0, 0.22);
+  box-shadow: 0 16px 32px var(--accent-shadow, rgba(255, 121, 0, 0.22));
 }
 
 .secondary-admin-button {
@@ -158,12 +184,12 @@ textarea::placeholder {
 
 .primary-student-button {
   border-radius: 1rem;
-  background: linear-gradient(135deg, #ff7900, #e46d00);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   padding: 0.75rem 1rem;
   color: #ffffff;
   font-size: 0.875rem;
   font-weight: 800;
-  box-shadow: 0 16px 32px rgba(255, 121, 0, 0.22);
+  box-shadow: 0 16px 32px var(--accent-shadow, rgba(255, 121, 0, 0.22));
 }
 
 .small-student-button {
@@ -184,4 +210,21 @@ textarea::placeholder {
   #root {
     padding: 0;
   }
+}
+
+/* ─── Dark mode for the entire document (login included) ─── */
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 121, 0, 0.06), transparent 28%),
+    linear-gradient(180deg, #0f172a 0%, #0a0f1e 100%);
+}
+
+.dark {
+  --page-bg: #0f172a;
+  --panel: #1e293b;
+  --card: #1a2336;
+  --border: #334155;
+  --text: #cbd5e1;
+  --heading-color: #f1f5f9;
+  --muted: #94a3b8;
 }

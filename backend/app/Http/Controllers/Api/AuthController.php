@@ -26,6 +26,9 @@ class AuthController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'year_level' => ['nullable', 'in:1,2'],
+            'option' => ['nullable', 'in:Full Stack,Mobile,RV/RA'],
         ], [
             'name.required' => 'Le nom est obligatoire.',
             'email.required' => 'Lâ€™adresse e-mail est obligatoire.',
@@ -33,15 +36,28 @@ class AuthController extends Controller
             'email.unique' => 'Un compte existe dÃ©jÃ  avec cette adresse e-mail.',
             'password.required' => 'Le mot de passe est obligatoire.',
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+            'year_level.in' => 'Lâ€™annÃ©e dâ€™Ã©tudes sÃ©lectionnÃ©e est invalide.',
+            'option.in' => 'Lâ€™option sÃ©lectionnÃ©e est invalide.',
         ]);
+
+        $phone = $data['phone'] ?? null;
+        $year = $data['year_level'] ?? '1';
+        $opt = $data['option'] ?? null;
+
+        if ($year === '2') {
+            $optionStr = $opt ?: 'Full Stack';
+            $specialty = "Développement digital - 2ème année - {$optionStr}";
+        } else {
+            $specialty = "Développement digital - 1ère année";
+        }
 
         $user = User::query()->create([
             'name' => trim($data['name']),
             'email' => strtolower(trim($data['email'])),
             'role' => 'trainee',
             'is_active' => true,
-            'phone' => null,
-            'specialty' => null,
+            'phone' => $phone,
+            'specialty' => $specialty,
             'bio' => null,
             'password' => Hash::make($data['password']),
         ]);

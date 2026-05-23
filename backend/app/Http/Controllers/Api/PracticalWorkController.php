@@ -140,11 +140,45 @@ class PracticalWorkController extends Controller
         $this->authorizeStudentAccess($request, $practicalWork);
         abort_unless($practicalWork->hasDocument(), 404);
 
+        if ($request->user() && $request->user()->role === 'trainee') {
+            try {
+                \DB::table('document_downloads')->updateOrInsert([
+                    'user_id' => $request->user()->id,
+                    'downloadable_type' => PracticalWork::class,
+                    'downloadable_id' => $practicalWork->id,
+                ], [
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Ignore DB logging errors
+            }
+        }
+
         return Storage::disk($practicalWork->document_disk)->download(
             $practicalWork->document_path,
             $practicalWork->document_name,
             ['Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf']
         );
+    }
+
+    private function getDownloadStats(string $type, int $id, int $yearLevel): array
+    {
+        $totalTrainees = \App\Models\User::query()
+            ->where('role', 'trainee')
+            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%')
+            ->count();
+
+        $downloadedCount = \DB::table('document_downloads')
+            ->where('downloadable_type', $type)
+            ->where('downloadable_id', $id)
+            ->count();
+
+        $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
+
+        return [
+            'count' => $downloadedCount,
+            'percentage' => min(100, $percentage),
+        ];
     }
 
     private function serializePracticalWork(PracticalWork $practicalWork, bool $includeRelations = false): array
@@ -166,6 +200,7 @@ class PracticalWorkController extends Controller
                 'preview_url' => "/api/practical-works/{$practicalWork->id}/preview",
                 'download_url' => "/api/practical-works/{$practicalWork->id}/download",
             ] : null,
+            'download_stats' => $this->getDownloadStats(PracticalWork::class, $practicalWork->id, $practicalWork->course?->module?->year_level ?? 1),
             'created_at' => $practicalWork->created_at,
         ];
 

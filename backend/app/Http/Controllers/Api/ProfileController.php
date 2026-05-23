@@ -28,13 +28,29 @@ class ProfileController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'bio' => ['nullable', 'string'],
+            'year_level' => ['nullable', 'in:1,2'],
+            'option' => ['nullable', 'in:Full Stack,Mobile,RV/RA'],
             'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
         $attributes = [
             'name' => trim($data['name']),
             'email' => strtolower(trim($data['email'])),
+            'phone' => $data['phone'] ?? null,
+            'bio' => $data['bio'] ?? null,
         ];
+
+        if (isset($data['year_level']) && $user->role === 'trainee') {
+            $year = $data['year_level'];
+            if ($year === '2') {
+                $optionStr = $data['option'] ?? 'Full Stack';
+                $attributes['specialty'] = "Développement digital - 2ème année - {$optionStr}";
+            } else {
+                $attributes['specialty'] = "Développement digital - 1ère année";
+            }
+        }
 
         if ($request->hasFile('avatar')) {
             $this->deleteAvatar($user);
@@ -77,7 +93,9 @@ class ProfileController extends Controller
         abort_unless($request->user() && (int) $request->user()->id === (int) $user->id || $request->user()?->role === 'admin', 403);
         abort_unless($user->avatar_path, 404);
 
-        return Storage::disk($user->avatar_disk ?: 'local')->response($user->avatar_path, $user->avatar_name);
+        return Storage::disk($user->avatar_disk ?: 'local')->response($user->avatar_path, $user->avatar_name, [
+            'Cache-Control' => 'public, max-age=31536000, immutable'
+        ]);
     }
 
     private function deleteAvatar(User $user): void

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['title', 'slug', 'description', 'year_level'])]
+#[Fillable(['title', 'slug', 'description', 'year_level', 'option'])]
 class Module extends Model
 {
     public function trainers(): BelongsToMany

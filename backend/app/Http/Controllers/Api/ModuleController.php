@@ -22,12 +22,16 @@ class ModuleController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'year_level' => ['nullable', 'integer', 'in:1,2'],
+            'option' => ['nullable', 'string', 'in:Full Stack,Mobile,RV/RA'],
         ]);
 
         $module = Module::query()->create([
             'title' => $data['title'],
             'slug' => Str::slug($data['title']).'-'.Str::lower(Str::random(5)),
             'description' => $data['description'] ?? null,
+            'year_level' => $data['year_level'] ?? null,
+            'option' => $data['option'] ?? null,
         ]);
 
         return response()->json($module->load(['trainers:id,name']), 201);
@@ -43,11 +47,15 @@ class ModuleController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'year_level' => ['nullable', 'integer', 'in:1,2'],
+            'option' => ['nullable', 'string', 'in:Full Stack,Mobile,RV/RA'],
         ]);
 
         $module->update([
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
+            'year_level' => $data['year_level'] ?? null,
+            'option' => $data['option'] ?? null,
         ]);
 
         return response()->json($module->load(['trainers:id,name']));
