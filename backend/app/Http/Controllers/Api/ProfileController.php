@@ -94,7 +94,10 @@ class ProfileController extends Controller
     {
         abort_unless($user->avatar_path, 404);
 
-        return Storage::disk($user->avatar_disk ?: 'local')->response($user->avatar_path, $user->avatar_name, [
+        $disk = $user->avatar_disk ?: 'local';
+        abort_unless(Storage::disk($disk)->exists($user->avatar_path), 404);
+
+        return Storage::disk($disk)->response($user->avatar_path, $user->avatar_name, [
             'Cache-Control' => 'public, max-age=31536000, immutable'
         ]);
     }
