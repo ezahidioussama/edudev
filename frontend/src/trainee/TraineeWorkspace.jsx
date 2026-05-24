@@ -27,7 +27,10 @@ const emptyPasswordForm = {
 function formatRelativeTime(dateString) {
   if (!dateString) return 'Aucun'
   try {
-    const cleanDate = dateString.replace(' ', 'T')
+    let cleanDate = dateString.replace(' ', 'T')
+    if (!cleanDate.endsWith('Z')) {
+      cleanDate += 'Z'
+    }
     const date = new Date(cleanDate)
     const now = new Date()
     const diffMs = now - date
