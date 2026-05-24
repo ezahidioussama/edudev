@@ -25,7 +25,7 @@ const emptyPasswordForm = {
 }
 
 export default function TraineeWorkspace({ user, api, onLogout, settings = null }) {
-  const [active, setActive] = useState(() => window.localStorage.getItem('edudev.trainee.activeTab') || 'dashboard')
+  const [active, setActive] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
   const [loading, setLoading] = useState(true)
@@ -78,10 +78,6 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
   useEffect(() => {
     loadWorkspace()
   }, [])
-
-  useEffect(() => {
-    window.localStorage.setItem('edudev.trainee.activeTab', active)
-  }, [active])
 
   useEffect(() => {
     setDarkMode(getEffectiveDarkMode(settings, user))

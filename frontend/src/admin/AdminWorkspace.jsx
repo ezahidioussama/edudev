@@ -41,7 +41,7 @@ const defaultSettings = {
 
 export default function AdminWorkspace({ user, api, onLogout, settings: appSettings = defaultSettings, onSettingsChange = null }) {
   const [darkMode, setDarkMode] = useState(() => (appSettings.appearance?.mode ?? 'light') === 'dark' || window.localStorage.getItem('edudev-admin-dark') === '1')
-  const [active, setActive] = useState(() => window.localStorage.getItem('edudev.admin.activeTab') || 'dashboard')
+  const [active, setActive] = useState('dashboard')
   const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.admin.cache'))
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
@@ -78,10 +78,6 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   useEffect(() => {
     loadAdmin()
   }, [])
-
-  useEffect(() => {
-    window.localStorage.setItem('edudev.admin.activeTab', active)
-  }, [active])
 
   useEffect(() => {
     setSettingsForm(appSettings)

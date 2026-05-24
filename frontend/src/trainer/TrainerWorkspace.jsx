@@ -53,7 +53,7 @@ const emptyPasswordForm = {
 export default function TrainerWorkspace({ user, api, onLogout, settings = null }) {
   const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [activeSection, setActiveSection] = useState(() => window.localStorage.getItem('edudev.trainer.activeTab') || 'dashboard')
+  const [activeSection, setActiveSection] = useState('dashboard')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -113,10 +113,6 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   useEffect(() => {
     loadWorkspace()
   }, [])
-
-  useEffect(() => {
-    window.localStorage.setItem('edudev.trainer.activeTab', activeSection)
-  }, [activeSection])
 
   useEffect(() => {
     setDarkMode(getEffectiveDarkMode(settings, user))
