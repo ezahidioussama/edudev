@@ -57,8 +57,8 @@ class ProfileController extends Controller
         if ($request->hasFile('avatar')) {
             $this->deleteAvatar($user);
             $file = $request->file('avatar');
-            $attributes['avatar_disk'] = 'local';
-            $attributes['avatar_path'] = Storage::disk('local')->putFileAs(
+            $attributes['avatar_disk'] = 'public';
+            $attributes['avatar_path'] = Storage::disk('public')->putFileAs(
                 "avatars/{$user->id}",
                 $file,
                 uniqid('avatar_', true).'.'.$file->extension()
@@ -92,7 +92,6 @@ class ProfileController extends Controller
 
     public function avatar(Request $request, User $user): \Symfony\Component\HttpFoundation\Response
     {
-        abort_unless($request->user() && (int) $request->user()->id === (int) $user->id || $request->user()?->role === 'admin', 403);
         abort_unless($user->avatar_path, 404);
 
         return Storage::disk($user->avatar_disk ?: 'local')->response($user->avatar_path, $user->avatar_name, [
