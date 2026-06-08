@@ -567,6 +567,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                     trainerOptions={trainerOptions}
                     onFilter={updateFilter}
                     hideType
+                    hideSort
                   />
                   {filteredModules.length ? (
                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -862,7 +863,7 @@ function SectionHeader({ eyebrow, title, description }) {
   )
 }
 
-function ResourceToolbar({ filters, moduleOptions, trainerOptions, onFilter, hideType = false }) {
+function ResourceToolbar({ filters, moduleOptions, trainerOptions, onFilter, hideType = false, hideSort = false }) {
   return (
     <div className="mb-6 flex flex-wrap gap-3">
       <label className="relative min-w-[280px] flex-1">
@@ -891,15 +892,18 @@ function ResourceToolbar({ filters, moduleOptions, trainerOptions, onFilter, hid
           options={resourceTypes}
         />
       ) : null}
-      <SelectBox
-        value={filters.sort}
-        onChange={(value) => onFilter('sort', value)}
-        options={[
-          { value: 'recent', label: 'Trier par : Récent' },
-          { value: 'downloads_desc', label: 'Taux : Élevé → Faible' },
-          { value: 'downloads_asc', label: 'Taux : Faible → Élevé' }
-        ]}
-      />
+      {!hideSort ? (
+        <SelectBox
+          value={filters.sort}
+          onChange={(value) => onFilter('sort', value)}
+          options={[
+            { value: 'recent', label: 'Trier par : Récent' },
+            { value: 'downloads_count_desc', label: 'Trier par : Plus téléchargé' },
+            { value: 'downloads_desc', label: 'Taux : Élevé → Faible' },
+            { value: 'downloads_asc', label: 'Taux : Faible → Élevé' }
+          ]}
+        />
+      ) : null}
     </div>
   )
 }
@@ -1436,6 +1440,14 @@ function filterResources(resources, filters) {
     const matchesType = filters.type === 'all' || item.resourceType === filters.type
     return matchesSearch && matchesModule && matchesTrainer && matchesType
   })
+
+  if (filters.sort === 'downloads_count_desc') {
+    return filtered.sort((a, b) => {
+      const countA = a.downloadStats?.count ?? 0
+      const countB = b.downloadStats?.count ?? 0
+      return countB - countA
+    })
+  }
 
   if (filters.sort === 'downloads_desc') {
     return filtered.sort((a, b) => {
