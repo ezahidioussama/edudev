@@ -113,22 +113,19 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
   const trainers = useMemo(() => data.users.filter((item) => item.role === 'trainer'), [data.users])
 
-  const traineeGroups = useMemo(() => {
-    const groups = new Set()
-    data.users.forEach((item) => {
-      if (item.role === 'trainee' && item.specialty) {
-        groups.add(item.specialty)
-      }
-    })
-    return Array.from(groups).sort()
-  }, [data.users])
-
   const getTraineeOption = (specialty) => {
     if (!specialty) return ''
     if (specialty.includes('Full Stack')) return 'Full Stack'
     if (specialty.includes('Mobile')) return 'Mobile'
     if (specialty.includes('RV/RA')) return 'RV/RA'
     return ''
+  }
+
+  const handleGroupFilterChange = (value) => {
+    setGroupFilter(value)
+    if (value !== '2') {
+      setOptionFilter('all')
+    }
   }
 
   const filteredUsers = useMemo(() => {
@@ -138,7 +135,12 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       const matchesSearch = !search || item.name.toLowerCase().includes(search) || item.email.toLowerCase().includes(search)
       
       if (item.role === 'trainee') {
-        const matchesGroup = groupFilter === 'all' || item.specialty === groupFilter
+        let matchesGroup = true
+        if (groupFilter === '1') {
+          matchesGroup = item.specialty && (item.specialty.includes('1') || item.specialty.includes('1ère'))
+        } else if (groupFilter === '2') {
+          matchesGroup = item.specialty && (item.specialty.includes('2') || item.specialty.includes('2ème'))
+        }
         
         let matchesOption = true
         if (optionFilter !== 'all') {
@@ -658,17 +660,21 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                   <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-4 animate-fadeIn">
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Groupe</span>
-                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={groupFilter} onChange={(event) => handleGroupFilterChange(event.target.value)}>
                         <option value="all">Tous les groupes</option>
-                        {traineeGroups.map((g) => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
+                        <option value="1">1ère année</option>
+                        <option value="2">2ème année</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Option</span>
-                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={optionFilter} onChange={(event) => setOptionFilter(event.target.value)}>
-                        <option value="all">Toutes les options</option>
+                      <select
+                        className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={groupFilter !== '2'}
+                        value={optionFilter}
+                        onChange={(event) => setOptionFilter(event.target.value)}
+                      >
+                        <option value="all">{groupFilter === '2' ? 'Toutes les options' : 'Non applicable'}</option>
                         <option value="Full Stack">Full Stack</option>
                         <option value="Mobile">Mobile</option>
                         <option value="RV/RA">RV/RA</option>
