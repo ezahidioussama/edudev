@@ -48,6 +48,9 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [groupFilter, setGroupFilter] = useState('all')
+  const [optionFilter, setOptionFilter] = useState('all')
+  const [userSort, setUserSort] = useState('name')
   const [contentType, setContentType] = useState('courses')
   const [contentQuery, setContentQuery] = useState('')
   const [moduleFilter, setModuleFilter] = useState('all')
@@ -91,6 +94,14 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   }, [darkMode])
 
   useEffect(() => {
+    if (roleFilter !== 'trainee') {
+      setGroupFilter('all')
+      setOptionFilter('all')
+      setUserSort('name')
+    }
+  }, [roleFilter])
+
+  useEffect(() => {
     setPage(1)
   }, [contentType, contentQuery, moduleFilter, trainerFilter])
 
@@ -101,14 +112,63 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   }, [preview])
 
   const trainers = useMemo(() => data.users.filter((item) => item.role === 'trainer'), [data.users])
+
+  const traineeGroups = useMemo(() => {
+    const groups = new Set()
+    data.users.forEach((item) => {
+      if (item.role === 'trainee' && item.specialty) {
+        groups.add(item.specialty)
+      }
+    })
+    return Array.from(groups).sort()
+  }, [data.users])
+
+  const getTraineeOption = (specialty) => {
+    if (!specialty) return ''
+    if (specialty.includes('Full Stack')) return 'Full Stack'
+    if (specialty.includes('Mobile')) return 'Mobile'
+    if (specialty.includes('RV/RA')) return 'RV/RA'
+    return ''
+  }
+
   const filteredUsers = useMemo(() => {
     const search = query.trim().toLowerCase()
-    return data.users.filter((item) => {
+    let list = data.users.filter((item) => {
       const matchesRole = roleFilter === 'all' || item.role === roleFilter
       const matchesSearch = !search || item.name.toLowerCase().includes(search) || item.email.toLowerCase().includes(search)
+      
+      if (item.role === 'trainee') {
+        const matchesGroup = groupFilter === 'all' || item.specialty === groupFilter
+        
+        let matchesOption = true
+        if (optionFilter !== 'all') {
+          matchesOption = item.specialty && item.specialty.toLowerCase().includes(optionFilter.toLowerCase())
+        }
+        
+        return matchesRole && matchesSearch && matchesGroup && matchesOption
+      }
+      
       return matchesRole && matchesSearch
     })
-  }, [data.users, query, roleFilter])
+
+    if (userSort === 'group') {
+      list = [...list].sort((a, b) => {
+        const valA = a.specialty || ''
+        const valB = b.specialty || ''
+        return valA.localeCompare(valB)
+      })
+    } else if (userSort === 'option') {
+      list = [...list].sort((a, b) => {
+        const optA = getTraineeOption(a.specialty)
+        const optB = getTraineeOption(b.specialty)
+        return optA.localeCompare(optB)
+      })
+    } else {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name))
+    }
+
+    return list
+  }, [data.users, query, roleFilter, groupFilter, optionFilter, userSort])
 
   const contentItems = useMemo(() => {
     const source = contentType === 'courses' ? data.courses : contentType === 'tp' ? data.practicalWorks : data.assessments
@@ -594,6 +654,49 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                     <option value="trainee">Stagiaires</option>
                   </select>
                 </div>
+                {roleFilter === 'trainee' && (
+                  <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-4 animate-fadeIn">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Groupe</span>
+                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+                        <option value="all">Tous les groupes</option>
+                        {traineeGroups.map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Option</span>
+                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={optionFilter} onChange={(event) => setOptionFilter(event.target.value)}>
+                        <option value="all">Toutes les options</option>
+                        <option value="Full Stack">Full Stack</option>
+                        <option value="Mobile">Mobile</option>
+                        <option value="RV/RA">RV/RA</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trier par</span>
+                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={userSort} onChange={(event) => setUserSort(event.target.value)}>
+                        <option value="name">Nom & Prénom</option>
+                        <option value="group">Groupe (Alphabétique)</option>
+                        <option value="option">Option (2ème année)</option>
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGroupFilter('all')
+                          setOptionFilter('all')
+                          setUserSort('name')
+                        }}
+                        className="w-full h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400 cursor-pointer"
+                      >
+                        Réinitialiser filtres
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <UsersTable users={filteredUsers} onEdit={openUserModal} onToggle={toggleUser} onDelete={(item) => remove(`/admin/users/${item.id}`, 'Utilisateur supprimé.')} />
               </Panel>
             ) : null}
@@ -875,6 +978,7 @@ function UsersTable({ users, onEdit, onToggle, onDelete }) {
             <tr>
               <th className="px-4 py-3">Utilisateur</th>
               <th className="px-4 py-3">Rôle</th>
+              <th className="px-4 py-3">Groupe / Spécialité</th>
               <th className="px-4 py-3">Statut</th>
               <th className="px-4 py-3">Modules</th>
               <th className="px-4 py-3">Actions</th>
@@ -885,6 +989,7 @@ function UsersTable({ users, onEdit, onToggle, onDelete }) {
               <tr key={item.id} className="transition hover:bg-slate-50 dark:hover:bg-slate-800/70">
                 <td className="px-4 py-4"><strong>{item.name}</strong><p className="text-slate-500">{item.email}</p></td>
                 <td className="px-4 py-4">{roleLabel(item.role)}</td>
+                <td className="px-4 py-4 text-slate-600 dark:text-slate-300 font-semibold">{item.specialty || '-'}</td>
                 <td className="px-4 py-4"><Badge tone={item.is_active ? 'success' : 'danger'}>{item.is_active ? 'Actif' : 'Inactif'}</Badge></td>
                 <td className="max-w-sm px-4 py-4 text-slate-600 dark:text-slate-300">{(item.modules ?? []).map((module) => module.title).join(', ') || '-'}</td>
                 <td className="px-4 py-4">
