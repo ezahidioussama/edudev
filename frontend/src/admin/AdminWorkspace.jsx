@@ -52,10 +52,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [roleFilter, setRoleFilter] = useState('all')
   const [groupFilter, setGroupFilter] = useState('all')
   const [optionFilter, setOptionFilter] = useState('all')
-  const [userSort, setUserSort] = useState('name')
   const [moduleYearFilter, setModuleYearFilter] = useState('all')
   const [moduleOptionFilter, setModuleOptionFilter] = useState('all')
-  const [moduleSort, setModuleSort] = useState('title')
   const [contentType, setContentType] = useState('courses')
   const [contentQuery, setContentQuery] = useState('')
   const [moduleFilter, setModuleFilter] = useState('all')
@@ -102,9 +100,6 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
     if (roleFilter !== 'trainee') {
       setGroupFilter('all')
       setOptionFilter('all')
-      setUserSort('name')
-    } else {
-      setUserSort('group')
     }
   }, [roleFilter])
 
@@ -160,24 +155,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       return matchesRole && matchesSearch
     })
 
-    if (userSort === 'group') {
-      list = [...list].sort((a, b) => {
-        const valA = a.specialty || ''
-        const valB = b.specialty || ''
-        return valA.localeCompare(valB)
-      })
-    } else if (userSort === 'option') {
-      list = [...list].sort((a, b) => {
-        const optA = getTraineeOption(a.specialty)
-        const optB = getTraineeOption(b.specialty)
-        return optA.localeCompare(optB)
-      })
-    } else {
-      list = [...list].sort((a, b) => a.name.localeCompare(b.name))
-    }
-
-    return list
-  }, [data.users, query, roleFilter, groupFilter, optionFilter, userSort])
+    return [...list].sort((a, b) => a.name.localeCompare(b.name))
+  }, [data.users, query, roleFilter, groupFilter, optionFilter])
 
   const filteredModules = useMemo(() => {
     let list = data.modules.filter((item) => {
@@ -196,16 +175,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       return matchesYear && matchesOption
     })
 
-    if (moduleSort === 'year') {
-      list = [...list].sort((a, b) => (a.year_level || 0) - (b.year_level || 0))
-    } else if (moduleSort === 'option') {
-      list = [...list].sort((a, b) => (a.option || '').localeCompare(b.option || ''))
-    } else {
-      list = [...list].sort((a, b) => a.title.localeCompare(b.title))
-    }
-
-    return list
-  }, [data.modules, moduleYearFilter, moduleOptionFilter, moduleSort])
+    return [...list].sort((a, b) => a.title.localeCompare(b.title))
+  }, [data.modules, moduleYearFilter, moduleOptionFilter])
 
   const contentItems = useMemo(() => {
     const source = contentType === 'courses' ? data.courses : contentType === 'tp' ? data.practicalWorks : data.assessments
@@ -694,7 +665,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                   </select>
                 </div>
                 {roleFilter === 'trainee' && (
-                  <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-4 animate-fadeIn">
+                  <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-3 animate-fadeIn">
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Groupe</span>
                       <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={groupFilter} onChange={(event) => handleGroupFilterChange(event.target.value)}>
@@ -717,20 +688,12 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                         <option value="RV/RA">RV/RA</option>
                       </select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trier par</span>
-                      <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={userSort} onChange={(event) => setUserSort(event.target.value)}>
-                        <option value="group">Groupe (Alphabétique)</option>
-                        <option value="option">Option (2ème année)</option>
-                      </select>
-                    </div>
                     <div className="flex items-end">
                       <button
                         type="button"
                         onClick={() => {
                           setGroupFilter('all')
                           setOptionFilter('all')
-                          setUserSort('group')
                         }}
                         className="w-full h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400 cursor-pointer"
                       >
@@ -759,7 +722,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
             {!loading && active === 'modules' ? (
               <Panel title="Modules" action={<button className="primary-admin-button" type="button" onClick={() => openModuleModal()}>Ajouter module</button>}>
-                <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-4 animate-fadeIn">
+                <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-3 animate-fadeIn">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Année</span>
                     <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={moduleYearFilter} onChange={(event) => {
@@ -785,21 +748,12 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                       <option value="RV/RA">RV/RA</option>
                     </select>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trier par</span>
-                    <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={moduleSort} onChange={(event) => setModuleSort(event.target.value)}>
-                      <option value="title">Nom (Alphabétique)</option>
-                      <option value="year">Année d'études</option>
-                      <option value="option">Option</option>
-                    </select>
-                  </div>
                   <div className="flex items-end">
                     <button
                       type="button"
                       onClick={() => {
                         setModuleYearFilter('all')
                         setModuleOptionFilter('all')
-                        setModuleSort('title')
                       }}
                       className="w-full h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400 cursor-pointer"
                     >
