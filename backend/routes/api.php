@@ -22,19 +22,6 @@ use App\Http\Controllers\Api\TrainerController;
 use App\Http\Controllers\Api\TrainerModuleController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/diagnostics/logs', function (\Illuminate\Http\Request $request) {
-    if ($request->query('key') !== 'supersecretlogs') {
-        abort(403);
-    }
-    $logPath = storage_path('logs/custom_errors.log');
-    if (!file_exists($logPath)) {
-        return response('No custom errors log file found.');
-    }
-    $lines = file($logPath);
-    $lastLines = array_slice($lines, -200);
-    return response(implode('', $lastLines), 200, ['Content-Type' => 'text/plain']);
-});
-
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/refresh', [AuthController::class, 'refresh']);
