@@ -128,6 +128,20 @@ class PracticalWorkController extends Controller
         $path = Storage::disk($practicalWork->document_disk)->path($practicalWork->document_path);
         abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
+        if ($request->user() && in_array($request->user()->role, ['trainee', 'stagiaire', 'student', 'learner'])) {
+            try {
+                \DB::table('document_downloads')->updateOrInsert([
+                    'user_id' => $request->user()->id,
+                    'downloadable_type' => PracticalWork::class,
+                    'downloadable_id' => $practicalWork->id,
+                ], [
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Ignore DB logging errors
+            }
+        }
+
         return response()->file($path, [
             'Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$practicalWork->document_name.'"',
@@ -143,7 +157,7 @@ class PracticalWorkController extends Controller
         $path = Storage::disk($practicalWork->document_disk)->path($practicalWork->document_path);
         abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
-        if ($request->user() && $request->user()->role === 'trainee') {
+        if ($request->user() && in_array($request->user()->role, ['trainee', 'stagiaire', 'student', 'learner'])) {
             try {
                 \DB::table('document_downloads')->updateOrInsert([
                     'user_id' => $request->user()->id,

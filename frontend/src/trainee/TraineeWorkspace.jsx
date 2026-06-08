@@ -285,6 +285,9 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       const urlBlob = URL.createObjectURL(response.data)
       if (preview?.url) URL.revokeObjectURL(preview.url)
       setPreview({ title: resource.title, url: urlBlob })
+
+      // Auto refresh workspace to update preview stats instantly!
+      window.setTimeout(() => loadWorkspace({ silent: true }), 1000)
     } catch (requestError) {
       pushToast('error', "Impossible d'ouvrir ce PDF pour le moment.")
     }

@@ -129,6 +129,20 @@ class AssessmentController extends Controller
         $path = Storage::disk($assessment->document_disk)->path($assessment->document_path);
         abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
+        if ($request->user() && in_array($request->user()->role, ['trainee', 'stagiaire', 'student', 'learner'])) {
+            try {
+                \DB::table('document_downloads')->updateOrInsert([
+                    'user_id' => $request->user()->id,
+                    'downloadable_type' => Assessment::class,
+                    'downloadable_id' => $assessment->id,
+                ], [
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Ignore DB logging errors
+            }
+        }
+
         return response()->file($path, [
             'Content-Type' => $assessment->document_mime_type ?: 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$assessment->document_name.'"',
@@ -144,7 +158,7 @@ class AssessmentController extends Controller
         $path = Storage::disk($assessment->document_disk)->path($assessment->document_path);
         abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
-        if ($request->user() && $request->user()->role === 'trainee') {
+        if ($request->user() && in_array($request->user()->role, ['trainee', 'stagiaire', 'student', 'learner'])) {
             try {
                 \DB::table('document_downloads')->updateOrInsert([
                     'user_id' => $request->user()->id,
