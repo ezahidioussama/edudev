@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import logo from '../assets/logo.jpeg'
 import { getEffectiveDarkMode, setUserThemePreference } from '../themePreferences'
 import { client as axiosClient } from '../api/client'
 import { classNames } from '../utils/helpers'
@@ -508,8 +509,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="mb-8 flex items-center gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
-                <BookIcon className="h-6 w-6" />
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
+                <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
               </div>
               <div className="flex flex-col">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">

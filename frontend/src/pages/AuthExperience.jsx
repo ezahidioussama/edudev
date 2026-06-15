@@ -1,22 +1,4 @@
-
-function EduDevMark() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 9.5 12 5l8 4.5-8 4.5L4 9.5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7 11.25V15c0 .88 2.24 2.5 5 2.5s5-1.62 5-2.5v-3.75"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
+import logo from '../assets/logo.jpeg'
 
 function ShieldIcon() {
   return (
@@ -165,8 +147,8 @@ export default function AuthExperience({
             </div>
 
             <div className="auth-logo-row">
-              <div className="auth-logo-icon">
-                <EduDevMark />
+              <div className="auth-logo-icon" style={{ background: '#fff', padding: 0 }}>
+                <img src={logo} alt="EduDev Logo" className="w-full h-full object-cover rounded-[inherit]" />
               </div>
               <p className="auth-hero-logo">{platformName}</p>
             </div>
@@ -192,8 +174,8 @@ export default function AuthExperience({
         <section className="auth-card premium-auth-card">
           <div className="auth-card-header">
             <div className="auth-card-logo">
-              <div className="auth-card-logo-icon">
-                <EduDevMark />
+              <div className="auth-card-logo-icon" style={{ background: '#fff', padding: 0 }}>
+                <img src={logo} alt="EduDev Logo" className="w-full h-full object-cover rounded-[inherit]" />
               </div>
               <span>{platformName}</span>
             </div>

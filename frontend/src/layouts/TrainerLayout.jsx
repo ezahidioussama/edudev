@@ -1,4 +1,5 @@
 import { classNames } from '../utils/helpers'
+import logo from '../assets/logo.jpeg'
 import ToastStack from '../components/ToastStack'
 
 export default function TrainerLayout({
@@ -37,12 +38,8 @@ export default function TrainerLayout({
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="mb-8 flex flex-col items-center gap-2 text-center">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/25">
-                <span className="h-6 w-6 block relative">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </span>
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
+                <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
               </div>
               <div className="flex flex-col items-center">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">{platformName}</p>

@@ -1,4 +1,5 @@
 import { classNames } from '../utils/helpers'
+import logo from '../assets/logo.jpeg'
 import Alert from '../components/Alert'
 import LoadingGrid from '../components/LoadingGrid'
 
@@ -43,11 +44,18 @@ export default function AdminLayout({
         <div className="flex min-h-screen">
           <aside className="hidden w-72 border-r border-white/70 bg-white/90 p-5 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:block">
             <div className="mb-8 rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-800 to-orange-500 p-5 text-white shadow-xl shadow-slate-950/20">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-100">
-                {platformName}
-              </p>
-              <h1 className="mt-2 text-2xl font-bold text-white">Admin Pro</h1>
-              <p className="mt-2 text-sm text-orange-50">{profileName || user.name}</p>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
+                  <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-100">
+                    {platformName}
+                  </p>
+                  <h1 className="text-xl font-bold text-white leading-tight">Admin Pro</h1>
+                </div>
+              </div>
+              <p className="text-sm text-orange-50">{profileName || user.name}</p>
             </div>
             <nav className="space-y-2">
               {sections.map(([key, label]) => (
