@@ -19,3 +19,6 @@ backend/.phpunit.result.cache
 backend/.env
 backend/.env.backup
 backend/.env.production
+
+# Expose tunnel configs
+tunnel_url.txt
