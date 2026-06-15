@@ -512,8 +512,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   function resolveUrl(url) {
     if (!url) return ''
     if (url.startsWith('/api')) {
-      const apiBase = import.meta.env.VITE_API_URL || '/api'
-      return url.replace('/api', apiBase)
+      return url.replace('/api', '')
     }
     return url
   }
