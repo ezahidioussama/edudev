@@ -90,7 +90,7 @@ export default function Profile({
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-100">
                   Administrateur
                 </p>
-                <h3 className="mt-1 text-2xl font-bold text-white">{profile?.name}</h3>
+                <h3 className="mt-1 text-2xl font-bold text-white" style={{ color: '#fdba74' }}>{profile?.name}</h3>
                 <p className="mt-1 text-sm text-orange-50">{profile?.email}</p>
               </div>
             </div>

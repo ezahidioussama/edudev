@@ -42,20 +42,23 @@ export default function AdminLayout({
     <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-slate-100 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
         <div className="flex min-h-screen">
-          <aside className="hidden w-72 border-r border-white/70 bg-white/90 p-5 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:block">
-            <div className="mb-8 rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-800 to-orange-500 p-5 text-white shadow-xl shadow-slate-950/20">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
-                  <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-100">
-                    {platformName}
-                  </p>
-                  <h1 className="text-xl font-bold text-white leading-tight">Admin Pro</h1>
-                </div>
+          <aside className="hidden w-80 flex-shrink-0 max-h-screen overflow-y-auto overflow-x-hidden border-r border-white/70 bg-white/90 p-5 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:block lg:h-auto lg:max-h-none">
+            <div className="mb-8 flex items-center gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
+                <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
               </div>
-              <p className="text-sm text-orange-50">{profileName || user.name}</p>
+              <div className="flex-1 min-w-max">
+                <p className="truncate text-xs font-semibold uppercase tracking-[0.22em] text-orange-600 dark:text-orange-400">{platformName}</p>
+                <span className="block whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900 dark:text-white">Espace Admin</span>
+              </div>
+            </div>
+
+            <div className="mb-8 rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-800 to-orange-500 p-5 text-white shadow-xl shadow-slate-950/20">
+              <h2 className="truncate text-lg font-semibold whitespace-normal" style={{ color: '#fdba74' }}>{profileName || user.name}</h2>
+              <p className="truncate text-xs text-orange-50 mt-1">{user?.email}</p>
+              <p className="mt-3 text-xs leading-5 text-orange-50">
+                Pilotez la plateforme, gérez les comptes utilisateurs, les modules et les paramètres généraux.
+              </p>
             </div>
             <nav className="space-y-2">
               {sections.map(([key, label]) => (
@@ -77,7 +80,7 @@ export default function AdminLayout({
             </nav>
           </aside>
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
             <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-xl shadow-slate-200/45 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-500">

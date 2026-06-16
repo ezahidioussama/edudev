@@ -503,7 +503,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
         <div className="flex min-h-screen">
           <aside
             className={classNames(
-              'fixed inset-y-0 left-0 z-40 w-72 h-screen max-h-screen overflow-y-scroll lg:h-auto lg:max-h-none border-r border-white/50 bg-white/90 p-5 pb-28 lg:pb-5 shadow-2xl shadow-slate-200/60 backdrop-blur-xl transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:static lg:translate-x-0',
+              'fixed inset-y-0 left-0 z-40 w-80 flex-shrink-0 h-screen max-h-screen overflow-y-auto overflow-x-hidden lg:h-auto lg:max-h-none border-r border-white/50 bg-white/90 p-5 pb-28 lg:pb-5 shadow-2xl shadow-slate-200/60 backdrop-blur-xl transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:static lg:translate-x-0',
               mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
             )}
             style={{ WebkitOverflowScrolling: 'touch' }}
@@ -512,13 +512,13 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border border-slate-100 dark:border-slate-800">
                 <img src={logo} alt="EduDev Logo" className="h-full w-full object-cover rounded-2xl" />
               </div>
-              <div className="flex flex-col">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">
+              <div className="flex-1 min-w-max">
+                <p className="truncate text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">
                   {platformName}
                 </p>
-                <h1 className="text-xl font-semibold leading-tight text-slate-900 dark:text-white">
+                <span className="block whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900 dark:text-white">
                   Espace stagiaire
-                </h1>
+                </span>
               </div>
             </div>
 
@@ -526,7 +526,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
               <div className="flex items-center gap-3">
                 <Avatar user={currentUser} size="h-14 w-14" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-lg font-semibold whitespace-normal">
+                  <h2 className="truncate text-lg font-semibold whitespace-normal" style={{ color: '#fdba74' }}>
                     {currentUser?.first_name + ' ' + currentUser?.last_name}
                   </h2>
                   <p className="truncate text-xs text-orange-50">{currentUser?.email}</p>
@@ -577,7 +577,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
             </div>
           </aside>
 
-          <div className="flex-1 lg:pl-0">
+          <div className="flex-1 min-w-0 lg:pl-0">
             <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
               <header className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-white/70 bg-white/85 px-5 py-4 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20">
                 <div className="flex items-center gap-3">

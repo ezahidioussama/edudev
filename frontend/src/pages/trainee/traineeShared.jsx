@@ -337,7 +337,7 @@ export function DashboardHero({ user, modules, resources }) {
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-100">
               Espace pédagogique
             </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: '#fdba74' }}>
               Bonjour, {user?.name}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-100">
@@ -695,7 +695,7 @@ export function ProfileHero({ user, avatarPreview, stats }) {
               <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-orange-50">
                 Stagiaire
               </span>
-              <h2 className="mt-3 break-words text-3xl font-semibold leading-tight sm:text-4xl">
+              <h2 className="mt-3 break-words text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: '#fdba74' }}>
                 {user?.name}
               </h2>
               <p className="mt-2 break-words text-sm text-orange-50">{user?.email}</p>

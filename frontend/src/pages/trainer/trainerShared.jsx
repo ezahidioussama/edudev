@@ -360,7 +360,7 @@ export function ProfileHero({ user, modulesCount, coursesCount, avatarPreview })
                 <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-orange-50">Formateur</span>
                 <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-slate-100">Profil actif</span>
               </div>
-              <h2 className="break-words text-3xl font-semibold leading-tight sm:text-4xl">{user?.name}</h2>
+              <h2 className="break-words text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: '#fdba74' }}>{user?.name}</h2>
               <p className="mt-2 break-words text-sm text-orange-50">{user?.email}</p>
             </div>
           </div>
